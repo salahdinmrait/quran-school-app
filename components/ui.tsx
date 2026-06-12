@@ -246,6 +246,34 @@ export function ChipSelect<T extends string>({
   );
 }
 
+// ── CheckRow (multi-select rij met checkbox) ─────────────────────────────────
+
+export function CheckRow({
+  label,
+  sublabel,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  sublabel?: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Pressable onPress={onToggle} style={({ pressed }) => [styles.checkRow, pressed && { opacity: 0.7 }]}>
+      <Ionicons
+        name={checked ? "checkbox" : "square-outline"}
+        size={22}
+        color={checked ? colors.primary : colors.textFaint}
+      />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.checkLabel}>{label}</Text>
+        {sublabel ? <Text style={styles.checkSublabel}>{sublabel}</Text> : null}
+      </View>
+    </Pressable>
+  );
+}
+
 // ── Menu tile (dashboard navigation) ──────────────────────────────────────────
 
 export function MenuTile({
@@ -390,6 +418,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   tileBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  checkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  checkLabel: { fontSize: 14, color: colors.text },
+  checkSublabel: { fontSize: 12, color: colors.textMuted },
   tileTitle: { fontSize: 15, fontWeight: "600", color: colors.text },
   tileSubtitle: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   kvRow: {

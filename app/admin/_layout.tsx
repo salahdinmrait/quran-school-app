@@ -19,6 +19,7 @@ export default function AdminLayout() {
         <Stack.Screen name="vakken" options={{ title: "Vakken" }} />
         <Stack.Screen name="rooster" options={{ title: "Rooster" }} />
         <Stack.Screen name="berichten" options={{ title: "Berichten" }} />
+        <Stack.Screen name="statistieken" options={{ title: "Statistieken" }} />
       </Stack>
     </RoleGuard>
   );

@@ -1,12 +1,29 @@
-import { useState } from "react";
-import { View, Text, StyleSheet, Linking } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, StyleSheet, Linking, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError, getApiUrl, getAuthToken } from "../../lib/api";
-import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input } from "../../components/ui";
+import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
 import { colors } from "../../lib/theme";
 import { fmtDatum, isVerlopen } from "../../lib/format";
 import type { DocentKlas } from "./klassen";
+
+interface RankingItem {
+  positie: number;
+  leerling: { id: string; name: string };
+  aantalIngeleverd: number;
+  totaal: number;
+  percentage: number;
+}
+
+interface KlasRanking {
+  klasId: string;
+  klasNaam: string;
+  top3: RankingItem[];
+  totaalHw: number;
+}
+
+const MEDAILLES = ["🥇", "🥈", "🥉"];
 
 interface Inlevering {
   id: string;
@@ -38,11 +55,31 @@ export default function DocentHuiswerk() {
   const [opmerkingText, setOpmerkingText] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Klassement per klas
+  const [rankings, setRankings] = useState<KlasRanking[]>([]);
+  const [rankingKlasId, setRankingKlasId] = useState<string | null>(null);
+
+  const klasIds = (kl.data ?? []).map((k) => k.id).join(",");
+  useEffect(() => {
+    if (!kl.data || kl.data.length === 0) return;
+    Promise.all(
+      kl.data.map((k) =>
+        api<KlasRanking>(`/api/klassen/${k.id}/ranking`).catch(() => null)
+      )
+    ).then((results) => {
+      const ok = results.filter((r): r is KlasRanking => !!r);
+      setRankings(ok);
+      if (ok.length > 0) setRankingKlasId((prev) => prev ?? ok[0].klasId);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [klasIds]);
+
   if (hw.loading || kl.loading) return <Loading />;
   if (hw.error) return <ErrorView message={hw.error} onRetry={hw.reload} />;
 
   const huiswerk = hw.data ?? [];
   const klassen = kl.data ?? [];
+  const activeRanking = rankings.find((r) => r.klasId === rankingKlasId) ?? rankings[0] ?? null;
 
   // Leerlingen that this huiswerk applies to: klas of linked les,
   // otherwise every klas (of this docent) that has the vak.
@@ -100,9 +137,52 @@ export default function DocentHuiswerk() {
     Linking.openURL(`${getApiUrl()}/api/bijlage/${h.id}?token=${encodeURIComponent(token ?? "")}`);
   }
 
+  function confirmDeleteHuiswerk(h: Huiswerk) {
+    Alert.alert("Huiswerk verwijderen", `"${h.titel}" verwijderen?`, [
+      { text: "Annuleren", style: "cancel" },
+      {
+        text: "Verwijderen",
+        style: "destructive",
+        onPress: async () => {
+          setActionError(null);
+          try {
+            await api(`/api/docent/huiswerk/${h.id}`, { method: "DELETE" });
+            await hw.reload();
+          } catch (e) {
+            setActionError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+          }
+        },
+      },
+    ]);
+  }
+
   return (
     <Screen refreshing={hw.refreshing} onRefresh={hw.refresh}>
       <Button title="+ Nieuw huiswerk" onPress={() => router.push("/docent/huiswerk-nieuw")} />
+
+      {/* Klassement */}
+      {activeRanking && activeRanking.totaalHw > 0 && activeRanking.top3.length > 0 && (
+        <Card style={{ borderColor: colors.warning, backgroundColor: colors.warningLight }}>
+          <Text style={styles.rankTitle}>🏆 Klassement</Text>
+          {rankings.length > 1 && (
+            <ChipSelect
+              options={rankings.map((r) => ({ value: r.klasId, label: r.klasNaam }))}
+              value={rankingKlasId}
+              onChange={setRankingKlasId}
+            />
+          )}
+          {activeRanking.top3.map((item) => (
+            <View key={item.leerling.id} style={styles.rankRow}>
+              <Text style={styles.rankMedal}>{MEDAILLES[item.positie - 1]}</Text>
+              <Text style={styles.rankNaam}>{item.leerling.name}</Text>
+              <Text style={styles.rankPct}>{item.percentage}%</Text>
+              <Muted>
+                {item.aantalIngeleverd}/{item.totaal}
+              </Muted>
+            </View>
+          ))}
+        </Card>
+      )}
 
       {huiswerk.length === 0 ? (
         <Empty text="Nog geen huiswerk opgegeven." />
@@ -137,6 +217,7 @@ export default function DocentHuiswerk() {
                       📎 {h.bijlageNaam ?? "Bijlage openen"}
                     </Text>
                   )}
+                  <Button small title="Huiswerk verwijderen" variant="danger" onPress={() => confirmDeleteHuiswerk(h)} />
 
                   <Text style={styles.subTitle}>Aftekenen per leerling</Text>
                   {actionError && <Text style={styles.error}>{actionError}</Text>}
@@ -232,4 +313,9 @@ const styles = StyleSheet.create({
   opmerkingLink: { color: colors.info, fontSize: 13, paddingVertical: 2 },
   opmerkingButtons: { flexDirection: "row", gap: 8 },
   error: { color: colors.danger, fontSize: 13, marginBottom: 4 },
+  rankTitle: { fontSize: 15, fontWeight: "700", color: colors.text, marginBottom: 8 },
+  rankRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  rankMedal: { fontSize: 18, width: 28, textAlign: "center" },
+  rankNaam: { flex: 1, fontSize: 14, fontWeight: "500", color: colors.text },
+  rankPct: { fontSize: 14, fontWeight: "700", color: colors.primaryDark },
 });

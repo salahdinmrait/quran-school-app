@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Alert } from "react-native";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
@@ -35,6 +35,25 @@ export default function DocentCijfers() {
   const cijfers = cf.data ?? [];
   const klassen = kl.data ?? [];
   const klas = klassen.find((k) => k.id === klasId) ?? null;
+
+  function confirmDelete(c: Cijfer) {
+    Alert.alert("Cijfer verwijderen", `Cijfer ${c.waarde.toFixed(1)} van ${c.leerling.name} verwijderen?`, [
+      { text: "Annuleren", style: "cancel" },
+      {
+        text: "Verwijderen",
+        style: "destructive",
+        onPress: async () => {
+          setError(null);
+          try {
+            await api(`/api/docent/cijfers/${c.id}`, { method: "DELETE" });
+            await cf.reload();
+          } catch (e) {
+            setError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+          }
+        },
+      },
+    ]);
+  }
 
   async function handleSubmit() {
     if (!leerlingId || !vakId || !waarde) return;
@@ -108,7 +127,7 @@ export default function DocentCijfers() {
         <Empty text="Nog geen cijfers ingevoerd." />
       ) : (
         cijfers.map((c) => (
-          <Card key={c.id}>
+          <Card key={c.id} onPress={() => confirmDelete(c)}>
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.title}>{c.leerling.name}</Text>
@@ -123,6 +142,7 @@ export default function DocentCijfers() {
                 fg={c.waarde >= 5.5 ? colors.primaryDark : colors.danger}
               />
             </View>
+            <Muted style={{ marginTop: 4, fontSize: 11 }}>Tik om te verwijderen</Muted>
           </Card>
         ))
       )}

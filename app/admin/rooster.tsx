@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Alert } from "react-native";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
@@ -41,6 +41,7 @@ export default function AdminRooster() {
   const [herhalenTot, setHerhalenTot] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   if (ls.loading || kl.loading) return <Loading />;
   if (ls.error) return <ErrorView message={ls.error} onRetry={ls.reload} />;
@@ -125,19 +126,47 @@ export default function AdminRooster() {
         </Card>
       )}
 
+      {deleteError && <Text style={styles.error}>{deleteError}</Text>}
       {lessen.length === 0 ? (
         <Empty text="Geen lessen ingepland." />
       ) : (
         lessen.map((l) => (
           <Card key={l.id}>
-            <Text style={styles.title}>
-              {l.klas.naam}
-              {l.vak ? ` · ${l.vak.naam}` : ""}
-            </Text>
-            <Muted>
-              {fmtDatumKort(l.datum)} · {l.begintijd}–{l.eindtijd}
-              {l.lokaal ? ` · ${l.lokaal}` : ""}
-            </Muted>
+            <View style={styles.lesRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>
+                  {l.klas.naam}
+                  {l.vak ? ` · ${l.vak.naam}` : ""}
+                </Text>
+                <Muted>
+                  {fmtDatumKort(l.datum)} · {l.begintijd}–{l.eindtijd}
+                  {l.lokaal ? ` · ${l.lokaal}` : ""}
+                </Muted>
+              </View>
+              <Button
+                small
+                title="Verwijderen"
+                variant="ghost"
+                onPress={() =>
+                  Alert.alert("Les verwijderen", `${l.klas.naam} op ${fmtDatumKort(l.datum)} verwijderen?`, [
+                    { text: "Annuleren", style: "cancel" },
+                    {
+                      text: "Verwijderen",
+                      style: "destructive",
+                      onPress: async () => {
+                        setDeleteError(null);
+                        try {
+                          await api(`/api/lessen/${l.id}`, { method: "DELETE" });
+                          await ls.reload();
+                        } catch (e) {
+                          setDeleteError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+                        }
+                      },
+                    },
+                  ])
+                }
+              />
+            </View>
           </Card>
         ))
       )}
@@ -147,5 +176,6 @@ export default function AdminRooster() {
 
 const styles = StyleSheet.create({
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
+  lesRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   error: { color: colors.danger, marginBottom: 8 },
 });

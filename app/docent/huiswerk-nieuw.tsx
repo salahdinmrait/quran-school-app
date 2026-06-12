@@ -28,6 +28,7 @@ export default function DocentHuiswerkNieuw() {
   const [titel, setTitel] = useState("");
   const [beschrijving, setBeschrijving] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [klasId, setKlasId] = useState<string | null>(null);
   const [vakId, setVakId] = useState<string | null>(null);
   const [lesId, setLesId] = useState<string | null>(null);
   const [bijlage, setBijlage] = useState<{ naam: string; data: string; type: string } | null>(null);
@@ -38,10 +39,14 @@ export default function DocentHuiswerkNieuw() {
   if (kl.error) return <ErrorView message={kl.error} onRetry={kl.reload} />;
 
   const klassen = kl.data ?? [];
-  const vakken = Array.from(
-    new Map(klassen.flatMap((k) => k.vakken).map((v) => [v.id, v])).values()
-  );
-  const lessen = (ls.data ?? []).slice(0, 20);
+  const klas = klassen.find((k) => k.id === klasId) ?? null;
+  // Vakken van de gekozen klas (zoals op de site); zonder klas alle eigen vakken
+  const vakken = klas
+    ? klas.vakken
+    : Array.from(new Map(klassen.flatMap((k) => k.vakken).map((v) => [v.id, v])).values());
+  const lessen = (ls.data ?? [])
+    .filter((l) => !klasId || l.klas.id === klasId)
+    .slice(0, 20);
 
   async function pickBijlage() {
     setError(null);
@@ -108,6 +113,19 @@ export default function DocentHuiswerkNieuw() {
       <Input label="Titel *" value={titel} onChangeText={setTitel} placeholder="bijv. Surah Al-Fatiha herhalen" />
       <Input label="Beschrijving" value={beschrijving} onChangeText={setBeschrijving} multiline placeholder="Uitleg voor de leerlingen..." />
       <Input label="Deadline (JJJJ-MM-DD)" value={deadline} onChangeText={setDeadline} placeholder="2026-07-01" autoCapitalize="none" />
+
+      {klassen.length > 0 && (
+        <ChipSelect
+          label="Klas"
+          options={klassen.map((k) => ({ value: k.id, label: k.naam }))}
+          value={klasId}
+          onChange={(v) => {
+            setKlasId(v);
+            setVakId(null);
+            setLesId(null);
+          }}
+        />
+      )}
 
       <ChipSelect
         label="Vak *"

@@ -24,12 +24,27 @@ interface Huiswerk {
   };
 }
 
+interface KlasRanking {
+  klasId: string;
+  klasNaam: string;
+  top3: { positie: number; leerling: { id: string; name: string }; percentage: number }[];
+  totaalHw: number;
+  eigenPositie: number | null;
+  eigenPercentage: number;
+  aantalLeerlingen?: number;
+}
+
+const MEDAILLES = ["🥇", "🥈", "🥉"];
+
 export default function LeerlingHuiswerk() {
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Huiswerk[]>("/api/leerling/huiswerk");
+  const rk = useFetch<KlasRanking[]>("/api/leerling/ranking");
   const [openId, setOpenId] = useState<string | null>(null);
 
   if (loading) return <Loading />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
+
+  const rankings = (rk.data ?? []).filter((r) => r.totaalHw > 0);
 
   const open = (data ?? []).filter((h) => !h.ingeLeverd);
   const klaar = (data ?? []).filter((h) => h.ingeLeverd);
@@ -96,6 +111,24 @@ export default function LeerlingHuiswerk() {
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
+      {rankings.map((r) => (
+        <View key={r.klasId} style={styles.rankCard}>
+          <Text style={styles.rankTitle}>🏆 Klassement {r.klasNaam}</Text>
+          {r.top3.map((item) => (
+            <View key={item.leerling.id} style={styles.rankRow}>
+              <Text style={styles.rankMedal}>{MEDAILLES[item.positie - 1]}</Text>
+              <Text style={styles.rankNaam}>{item.leerling.name}</Text>
+              <Text style={styles.rankPct}>{item.percentage}%</Text>
+            </View>
+          ))}
+          {r.eigenPositie !== null && (
+            <Text style={styles.eigenPositie}>
+              Jouw positie: #{r.eigenPositie} · {r.eigenPercentage}% ingeleverd
+            </Text>
+          )}
+        </View>
+      ))}
+
       {(data ?? []).length === 0 ? (
         <Empty text="Nog geen huiswerk." />
       ) : (
@@ -142,4 +175,18 @@ const styles = StyleSheet.create({
   },
   opmerkingLabel: { fontSize: 12, fontWeight: "600", color: colors.info, marginBottom: 2 },
   opmerkingText: { fontSize: 14, color: colors.text },
+  rankCard: {
+    backgroundColor: colors.warningLight,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+  },
+  rankTitle: { fontSize: 15, fontWeight: "700", color: colors.text, marginBottom: 8 },
+  rankRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 },
+  rankMedal: { fontSize: 18, width: 28, textAlign: "center" },
+  rankNaam: { flex: 1, fontSize: 14, fontWeight: "500", color: colors.text },
+  rankPct: { fontSize: 14, fontWeight: "700", color: colors.primaryDark },
+  eigenPositie: { marginTop: 8, fontSize: 13, color: colors.textMuted, fontWeight: "600" },
 });

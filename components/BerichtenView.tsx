@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useFetch } from "../lib/useFetch";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "./ui";
+import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect, CheckRow } from "./ui";
 import { colors, ROLE_LABELS } from "../lib/theme";
 import { fmtDatumTijd } from "../lib/format";
 
-// Gedeeld berichten-scherm voor DOCENT en ADMIN:
-// inbox met threads, verzonden met ontvangen reacties, en opstellen
-// (individueel / hele klas leerlingen / alle ouders van klas).
+// Gedeeld berichten-scherm voor DOCENT en ADMIN — zelfde opties als de site:
+// specifieke leerling(en)/ouder(s)/docent(en) met multi-select, of hele klas
+// (leerlingen dan wel ouders). Inbox en verzonden tonen volledige threads.
 
 interface ThreadMessage {
   id: string;
@@ -47,14 +47,18 @@ interface TargetKlas {
   ouders: { id: string; name: string; kindNaam: string }[];
 }
 
+// /api/docent/klassen geeft een array; /api/admin/berichten-data geeft
+// { klassen, docenten }.
+type TargetsResponse = TargetKlas[] | { klassen: TargetKlas[]; docenten: { id: string; name: string }[] };
+
 type Tab = "inbox" | "verzonden" | "nieuw";
-type DoelType = "GEBRUIKERS" | "KLAS_LEERLINGEN" | "KLAS_OUDERS";
+type DoelType = "LEERLINGEN" | "OUDERS" | "DOCENTEN" | "KLAS_LEERLINGEN" | "KLAS_OUDERS";
 
 export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) {
   const { user } = useAuth();
   const { data, setData, error, loading, refreshing, refresh, reload } =
     useFetch<{ inbox: BerichtIn[]; verzonden: BerichtUit[] }>("/api/berichten");
-  const targets = useFetch<TargetKlas[]>(targetsEndpoint);
+  const targets = useFetch<TargetsResponse>(targetsEndpoint);
 
   const [tab, setTab] = useState<Tab>("inbox");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -63,20 +67,59 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
   const [sendError, setSendError] = useState<string | null>(null);
 
   // Compose state
-  const [doelType, setDoelType] = useState<DoelType>("KLAS_LEERLINGEN");
+  const [doelType, setDoelType] = useState<DoelType>("LEERLINGEN");
   const [klasId, setKlasId] = useState<string | null>(null);
-  const [persoonId, setPersoonId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [zoek, setZoek] = useState("");
   const [onderwerp, setOnderwerp] = useState("");
   const [inhoud, setInhoud] = useState("");
   const [sent, setSent] = useState<string | null>(null);
+
+  const klassen: TargetKlas[] = useMemo(
+    () => (Array.isArray(targets.data) ? targets.data : targets.data?.klassen ?? []),
+    [targets.data]
+  );
+  const docenten = useMemo(
+    () => (Array.isArray(targets.data) ? [] : targets.data?.docenten ?? []),
+    [targets.data]
+  );
+  const isAdmin = user?.role === "ADMIN";
+
+  // Alle unieke personen over alle klassen heen (zoals op de site)
+  const allePersonen = useMemo(() => {
+    if (doelType === "DOCENTEN") {
+      return docenten.map((d) => ({ id: d.id, name: d.name, sub: "" }));
+    }
+    const map = new Map<string, { id: string; name: string; sub: string }>();
+    for (const k of klassen) {
+      if (doelType === "LEERLINGEN") {
+        for (const l of k.leerlingen) if (!map.has(l.id)) map.set(l.id, { id: l.id, name: l.name, sub: k.naam });
+      } else if (doelType === "OUDERS") {
+        for (const o of k.ouders) if (!map.has(o.id)) map.set(o.id, { id: o.id, name: o.name, sub: `ouder van ${o.kindNaam}` });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [doelType, klassen, docenten]);
+
+  const gefilterd = zoek.trim()
+    ? allePersonen.filter((p) => p.name.toLowerCase().includes(zoek.trim().toLowerCase()))
+    : allePersonen;
 
   if (loading) return <Loading />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
 
   const inbox = data?.inbox ?? [];
   const verzonden = data?.verzonden ?? [];
-  const klassen = targets.data ?? [];
-  const klas = klassen.find((k) => k.id === klasId) ?? null;
+  const isKlasBroadcast = doelType === "KLAS_LEERLINGEN" || doelType === "KLAS_OUDERS";
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function openBericht(b: BerichtIn) {
     const wasOpen = openId === b.id;
@@ -141,22 +184,23 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
       const body: Record<string, unknown> = {
         onderwerp: onderwerp.trim(),
         inhoud: inhoud.trim(),
-        doelType,
       };
-      if (doelType === "GEBRUIKERS") {
-        if (!persoonId) {
-          setSendError("Kies een ontvanger");
-          setSending(false);
-          return;
-        }
-        body.doelIds = [persoonId];
-      } else {
+      if (isKlasBroadcast) {
         if (!klasId) {
           setSendError("Kies een klas");
           setSending(false);
           return;
         }
+        body.doelType = doelType;
         body.doelId = klasId;
+      } else {
+        if (selectedIds.size === 0) {
+          setSendError("Kies minimaal één ontvanger");
+          setSending(false);
+          return;
+        }
+        body.doelType = "GEBRUIKERS";
+        body.doelIds = Array.from(selectedIds);
       }
       const res = await api<{ count: number }>("/api/berichten", {
         method: "POST",
@@ -165,6 +209,7 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
       setSent(`Verstuurd naar ${res.count} ontvanger${res.count === 1 ? "" : "s"} ✓`);
       setOnderwerp("");
       setInhoud("");
+      setSelectedIds(new Set());
       refresh();
     } catch (e) {
       setSendError(e instanceof ApiError ? e.message : "Versturen mislukt");
@@ -173,13 +218,13 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
     }
   }
 
-  const personen =
-    doelType === "GEBRUIKERS" && klas
-      ? [
-          ...klas.leerlingen.map((l) => ({ value: l.id, label: `${l.name} (leerling)` })),
-          ...klas.ouders.map((o) => ({ value: o.id, label: `${o.name} (ouder van ${o.kindNaam})` })),
-        ]
-      : [];
+  const doelOptions: { value: DoelType; label: string }[] = [
+    { value: "LEERLINGEN", label: "Leerling(en)" },
+    { value: "OUDERS", label: "Ouder(s)" },
+    ...(isAdmin ? [{ value: "DOCENTEN" as DoelType, label: "Docent(en)" }] : []),
+    { value: "KLAS_LEERLINGEN", label: "Hele klas" },
+    { value: "KLAS_OUDERS", label: "Ouders v.d. klas" },
+  ];
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
@@ -284,34 +329,72 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
         <Card>
           <ChipSelect<DoelType>
             label="Versturen naar"
-            options={[
-              { value: "KLAS_LEERLINGEN", label: "Klas (leerlingen)" },
-              { value: "KLAS_OUDERS", label: "Klas (ouders)" },
-              { value: "GEBRUIKERS", label: "Individueel" },
-            ]}
+            options={doelOptions}
             value={doelType}
             onChange={(v) => {
               setDoelType(v);
-              setPersoonId(null);
+              setSelectedIds(new Set());
+              setKlasId(null);
+              setZoek("");
             }}
           />
-          <ChipSelect
-            label="Klas"
-            options={klassen.map((k) => ({ value: k.id, label: k.naam }))}
-            value={klasId}
-            onChange={(v) => {
-              setKlasId(v);
-              setPersoonId(null);
-            }}
-          />
-          {doelType === "GEBRUIKERS" && personen.length > 0 && (
+
+          {isKlasBroadcast ? (
             <ChipSelect
-              label="Ontvanger"
-              options={personen}
-              value={persoonId}
-              onChange={setPersoonId}
+              label="Klas"
+              options={klassen.map((k) => ({
+                value: k.id,
+                label:
+                  doelType === "KLAS_OUDERS"
+                    ? `${k.naam} (${k.ouders.length} ouders)`
+                    : `${k.naam} (${k.leerlingen.length} lln)`,
+              }))}
+              value={klasId}
+              onChange={setKlasId}
             />
+          ) : (
+            <View style={styles.selectBox}>
+              <View style={styles.selectHeader}>
+                <Text style={styles.selectLabel}>
+                  Ontvangers ({selectedIds.size} geselecteerd)
+                </Text>
+                <View style={styles.selectActions}>
+                  <Text
+                    style={styles.selectAction}
+                    onPress={() => setSelectedIds(new Set(gefilterd.map((p) => p.id)))}
+                  >
+                    Alles
+                  </Text>
+                  <Text style={styles.selectAction} onPress={() => setSelectedIds(new Set())}>
+                    Niets
+                  </Text>
+                </View>
+              </View>
+              {allePersonen.length > 6 && (
+                <Input value={zoek} onChangeText={setZoek} placeholder="Zoeken op naam..." />
+              )}
+              {gefilterd.length === 0 ? (
+                <Muted>
+                  {doelType === "OUDERS"
+                    ? "Geen ouders gevonden (koppel ouders aan leerlingen)."
+                    : doelType === "DOCENTEN"
+                    ? "Geen docenten gevonden."
+                    : "Geen leerlingen gevonden."}
+                </Muted>
+              ) : (
+                gefilterd.map((p) => (
+                  <CheckRow
+                    key={p.id}
+                    label={p.name}
+                    sublabel={p.sub || undefined}
+                    checked={selectedIds.has(p.id)}
+                    onToggle={() => toggleSelect(p.id)}
+                  />
+                ))
+              )}
+            </View>
           )}
+
           <Input label="Onderwerp" value={onderwerp} onChangeText={setOnderwerp} placeholder="Onderwerp" />
           <Input label="Bericht" value={inhoud} onChangeText={setInhoud} multiline placeholder="Typ je bericht..." />
           {sendError && <Text style={styles.error}>{sendError}</Text>}
@@ -320,7 +403,7 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
             title="Versturen"
             onPress={sendNieuw}
             loading={sending}
-            disabled={!onderwerp.trim() || !inhoud.trim()}
+            disabled={!onderwerp.trim() || !inhoud.trim() || (isKlasBroadcast ? !klasId : selectedIds.size === 0)}
           />
         </Card>
       )}
@@ -367,4 +450,9 @@ const styles = StyleSheet.create({
   replyText: { fontSize: 14, color: colors.text, marginTop: 2 },
   error: { color: colors.danger, fontSize: 13, marginBottom: 4 },
   success: { color: colors.primaryDark, fontSize: 13, marginBottom: 4 },
+  selectBox: { marginBottom: 12 },
+  selectHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  selectLabel: { fontSize: 13, fontWeight: "500", color: colors.textMuted },
+  selectActions: { flexDirection: "row", gap: 12 },
+  selectAction: { fontSize: 13, color: colors.primaryDark, fontWeight: "600" },
 });

@@ -20,6 +20,7 @@ export default function AdminHome() {
         <MenuTile icon="library-outline" title="Vakken" subtitle="Vakkenbeheer" onPress={() => router.push("/admin/vakken")} />
         <MenuTile icon="calendar-outline" title="Rooster" subtitle="Lessen plannen" onPress={() => router.push("/admin/rooster")} />
         <MenuTile icon="mail-outline" title="Berichten" subtitle="Naar klassen & ouders" onPress={() => router.push("/admin/berichten")} />
+        <MenuTile icon="stats-chart-outline" title="Statistieken" subtitle="Aanwezigheid, cijfers & huiswerk" onPress={() => router.push("/admin/statistieken")} />
       </View>
     </Screen>
   );

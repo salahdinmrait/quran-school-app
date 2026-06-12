@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Alert } from "react-native";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
@@ -25,6 +25,14 @@ export default function AdminVakken() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Bewerken
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editNaam, setEditNaam] = useState("");
+  const [editCategorie, setEditCategorie] = useState<string | null>(null);
+  const [editBeschrijving, setEditBeschrijving] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
   if (loading) return <Loading />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
 
@@ -49,6 +57,62 @@ export default function AdminVakken() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function openEdit(v: Vak) {
+    const isOpen = editId === v.id;
+    setEditId(isOpen ? null : v.id);
+    setEditError(null);
+    if (!isOpen) {
+      setEditNaam(v.naam);
+      setEditCategorie(v.categorie);
+      setEditBeschrijving(v.beschrijving ?? "");
+    }
+  }
+
+  async function saveEdit(v: Vak) {
+    if (!editNaam || !editCategorie) return;
+    setBusy(true);
+    setEditError(null);
+    try {
+      await api(`/api/vakken/${v.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          naam: editNaam,
+          categorie: editCategorie,
+          beschrijving: editBeschrijving || undefined,
+        }),
+      });
+      setEditId(null);
+      await reload();
+    } catch (e) {
+      setEditError(e instanceof ApiError ? e.message : "Opslaan mislukt");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function confirmDelete(v: Vak) {
+    Alert.alert("Vak verwijderen", `"${v.naam}" verwijderen?`, [
+      { text: "Annuleren", style: "cancel" },
+      {
+        text: "Verwijderen",
+        style: "destructive",
+        onPress: async () => {
+          setBusy(true);
+          setEditError(null);
+          try {
+            await api(`/api/vakken/${v.id}`, { method: "DELETE" });
+            setEditId(null);
+            await reload();
+          } catch (e) {
+            setEditError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
   }
 
   return (
@@ -77,20 +141,41 @@ export default function AdminVakken() {
       {vakken.length === 0 ? (
         <Empty text="Nog geen vakken." />
       ) : (
-        vakken.map((v) => (
-          <Card key={v.id}>
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title}>{v.naam}</Text>
-                <Muted>
-                  {v._count.klassen} klas{v._count.klassen === 1 ? "" : "sen"}
-                  {v.beschrijving ? ` · ${v.beschrijving}` : ""}
-                </Muted>
+        vakken.map((v) => {
+          const expanded = editId === v.id;
+          return (
+            <Card key={v.id} onPress={() => openEdit(v)}>
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.title}>{v.naam}</Text>
+                  <Muted>
+                    {v._count.klassen} klas{v._count.klassen === 1 ? "" : "sen"}
+                    {v.beschrijving ? ` · ${v.beschrijving}` : ""}
+                  </Muted>
+                </View>
+                <Badge text={CATEGORIE_LABELS[v.categorie] ?? v.categorie} />
               </View>
-              <Badge text={CATEGORIE_LABELS[v.categorie] ?? v.categorie} />
-            </View>
-          </Card>
-        ))
+
+              {expanded && (
+                <View style={styles.detail}>
+                  <Input label="Naam" value={editNaam} onChangeText={setEditNaam} />
+                  <ChipSelect
+                    label="Categorie"
+                    options={CATEGORIEEN.map((c) => ({ value: c, label: CATEGORIE_LABELS[c] ?? c }))}
+                    value={editCategorie}
+                    onChange={setEditCategorie}
+                  />
+                  <Input label="Beschrijving" value={editBeschrijving} onChangeText={setEditBeschrijving} />
+                  {editError && <Text style={styles.error}>{editError}</Text>}
+                  <View style={styles.btnRow}>
+                    <Button small title="Opslaan" onPress={() => saveEdit(v)} loading={busy} disabled={!editNaam || !editCategorie} />
+                    <Button small title="Verwijderen" variant="danger" onPress={() => confirmDelete(v)} />
+                  </View>
+                </View>
+              )}
+            </Card>
+          );
+        })
       )}
     </Screen>
   );
@@ -99,5 +184,7 @@ export default function AdminVakken() {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
+  detail: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
+  btnRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   error: { color: colors.danger, marginBottom: 8 },
 });
