@@ -19,7 +19,6 @@ export default function LeerlingLayout() {
         <Stack.Screen name="rooster" options={{ title: "Rooster" }} />
         <Stack.Screen name="absentie" options={{ title: "Aanwezigheid" }} />
         <Stack.Screen name="berichten" options={{ title: "Berichten" }} />
-        <Stack.Screen name="hifdh" options={{ title: "Hifdh" }} />
       </Stack>
     </RoleGuard>
   );

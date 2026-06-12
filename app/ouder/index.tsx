@@ -22,11 +22,6 @@ export interface OuderKind {
     status: string;
     les: { datum: string; klas: { naam: string } };
   }[];
-  hifdhProfiel: {
-    huidigeSurahNr: number;
-    huidigeAyahNr: number;
-    taken: { voltooid: boolean }[];
-  } | null;
 }
 
 export default function OuderHome() {
@@ -49,7 +44,6 @@ export default function OuderHome() {
         <MenuTile icon="book-outline" title="Huiswerk" subtitle="Per kind" onPress={() => router.push("/ouder/huiswerk")} />
         <MenuTile icon="calendar-outline" title="Rooster" subtitle="Lessen & aanwezigheid" onPress={() => router.push("/ouder/rooster")} />
         <MenuTile icon="mail-outline" title="Berichten" subtitle="Contact met docent" onPress={() => router.push("/ouder/berichten")} />
-        <MenuTile icon="moon-outline" title="Hifdh" subtitle="Memorisatie-voortgang" onPress={() => router.push("/ouder/hifdh")} />
       </View>
 
       {kinderen.length === 0 ? (
@@ -88,12 +82,8 @@ export default function OuderHome() {
                     <Muted>aanwezig</Muted>
                   </View>
                   <View style={styles.stat}>
-                    <Text style={styles.statValue}>
-                      {kind.hifdhProfiel
-                        ? `${kind.hifdhProfiel.taken.filter((t) => t.voltooid).length}/${kind.hifdhProfiel.taken.length}`
-                        : "—"}
-                    </Text>
-                    <Muted>hifdh-taken</Muted>
+                    <Text style={styles.statValue}>{kind.cijfers.length}</Text>
+                    <Muted>cijfers</Muted>
                   </View>
                 </View>
               </Card>

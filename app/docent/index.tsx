@@ -21,7 +21,6 @@ export default function DocentHome() {
         <MenuTile icon="checkmark-done-outline" title="Absentie" subtitle="Aanwezigheid registreren" onPress={() => router.push("/docent/absentie")} />
         <MenuTile icon="calendar-outline" title="Rooster" subtitle="Lessen plannen" onPress={() => router.push("/docent/rooster")} />
         <MenuTile icon="mail-outline" title="Berichten" subtitle="Naar leerlingen & ouders" onPress={() => router.push("/docent/berichten")} />
-        <MenuTile icon="moon-outline" title="Hifdh" subtitle="Memorisatie-trajecten" onPress={() => router.push("/docent/hifdh")} />
       </View>
     </Screen>
   );

@@ -5,9 +5,9 @@ hetzelfde schoolaccount als op de website:
 
 | Rol | Functionaliteit in de app |
 |---|---|
-| **Leerling** | Dashboard, huiswerk (incl. bijlagen en docent-opmerkingen), cijfers, rooster, aanwezigheid, berichten (alleen reageren, niet initiëren), hifdh-voortgang |
-| **Docent** | Klassen, huiswerk opgeven (met bijlage tot 4 MB) en per leerling aftekenen + opmerking, cijfers invoeren, absentie registreren, rooster/lessen plannen, berichten (klas/ouders/individueel), hifdh-trajecten beheren en aftekenen |
-| **Ouder** | Voortgang per kind (cijfers, aanwezigheid, hifdh), huiswerk meevolgen, rooster, berichten naar docent van het kind |
+| **Leerling** | Dashboard, huiswerk (incl. bijlagen en docent-opmerkingen), cijfers, rooster, aanwezigheid, berichten (alleen reageren, niet initiëren), klassement |
+| **Docent** | Klassen, huiswerk opgeven (met bijlage tot 4 MB) en per leerling aftekenen + opmerking, cijfers invoeren, absentie registreren, rooster/lessen plannen, berichten (klas/ouders/individueel) |
+| **Ouder** | Voortgang per kind (cijfers, aanwezigheid), huiswerk meevolgen, rooster, berichten naar docent van het kind |
 | **Admin** | Accounts aanmaken binnen de eigen school, klassen + koppelingen (leerling/docent/vak), vakken, rooster, berichten |
 
 De rechten zijn identiek aan de website — de app praat tegen dezelfde API,

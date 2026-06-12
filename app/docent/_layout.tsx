@@ -21,7 +21,6 @@ export default function DocentLayout() {
         <Stack.Screen name="absentie" options={{ title: "Absentie" }} />
         <Stack.Screen name="rooster" options={{ title: "Rooster" }} />
         <Stack.Screen name="berichten" options={{ title: "Berichten" }} />
-        <Stack.Screen name="hifdh" options={{ title: "Hifdh-trajecten" }} />
       </Stack>
     </RoleGuard>
   );

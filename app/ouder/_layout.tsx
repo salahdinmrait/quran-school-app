@@ -17,7 +17,6 @@ export default function OuderLayout() {
         <Stack.Screen name="huiswerk" options={{ title: "Huiswerk" }} />
         <Stack.Screen name="rooster" options={{ title: "Rooster" }} />
         <Stack.Screen name="berichten" options={{ title: "Berichten" }} />
-        <Stack.Screen name="hifdh" options={{ title: "Hifdh" }} />
       </Stack>
     </RoleGuard>
   );

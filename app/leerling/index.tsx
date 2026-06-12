@@ -36,7 +36,6 @@ export default function LeerlingHome() {
         <MenuTile icon="calendar-outline" title="Rooster" subtitle="Lessen" onPress={() => router.push("/leerling/rooster")} />
         <MenuTile icon="checkmark-done-outline" title="Aanwezigheid" subtitle={data?.aanwezigPct != null ? `${data.aanwezigPct}% aanwezig` : "—"} onPress={() => router.push("/leerling/absentie")} />
         <MenuTile icon="mail-outline" title="Berichten" subtitle={data?.ongelezen ? `${data.ongelezen} ongelezen` : "Inbox"} badge={data?.ongelezen} onPress={() => router.push("/leerling/berichten")} />
-        <MenuTile icon="moon-outline" title="Hifdh" subtitle="Memorisatie" onPress={() => router.push("/leerling/hifdh")} />
       </View>
 
       {data && data.openHuiswerk.length > 0 && (
