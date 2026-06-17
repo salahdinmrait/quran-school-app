@@ -10,7 +10,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "../lib/theme";
+import { colors, fonts, radius, shadows } from "../lib/theme";
 
 // ── Screen wrapper ────────────────────────────────────────────────────────────
 
@@ -84,7 +84,7 @@ export function Card({
     return (
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => [styles.card, style, pressed && { opacity: 0.7 }]}
+        style={({ pressed }) => [styles.card, style, pressed && { opacity: 0.85 }]}
       >
         {children}
       </Pressable>
@@ -160,9 +160,10 @@ export function Button({
         styles.button,
         small && styles.buttonSmall,
         { backgroundColor: bg },
+        variant === "primary" && shadows.button,
         variant === "secondary" && { borderWidth: 1, borderColor: colors.border },
         (disabled || loading) && { opacity: 0.5 },
-        pressed && { opacity: 0.8 },
+        pressed && { opacity: 0.85 },
       ]}
     >
       {loading ? (
@@ -260,7 +261,7 @@ export function CheckRow({
   onToggle: () => void;
 }) {
   return (
-    <Pressable onPress={onToggle} style={({ pressed }) => [styles.checkRow, pressed && { opacity: 0.7 }]}>
+    <Pressable onPress={onToggle} style={({ pressed }) => [styles.checkRow, pressed && { opacity: 0.85 }]}>
       <Ionicons
         name={checked ? "checkbox" : "square-outline"}
         size={22}
@@ -292,7 +293,7 @@ export function MenuTile({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.tile, pressed && { opacity: 0.7 }]}
+      style={({ pressed }) => [styles.tile, pressed && { opacity: 0.85 }]}
     >
       <View style={styles.tileIcon}>
         <Ionicons name={icon} size={22} color={colors.primaryDark} />
@@ -328,32 +329,32 @@ const styles = StyleSheet.create({
   emptyText: { color: colors.textMuted, textAlign: "center", fontSize: 14 },
   card: {
     backgroundColor: colors.card,
-    borderRadius: 12,
+    borderRadius: radius.surface,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 14,
     marginBottom: 12,
   },
-  title: { fontSize: 22, fontWeight: "700", color: colors.text, marginBottom: 4 },
+  title: { fontSize: 22, fontFamily: fonts.displayBold, color: colors.text, marginBottom: 4, letterSpacing: -0.3 },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.textMuted,
+    fontSize: 12,
+    fontFamily: fonts.displayMedium,
+    color: colors.primary,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 1.2,
     marginTop: 16,
     marginBottom: 8,
   },
-  muted: { color: colors.textMuted, fontSize: 13 },
+  muted: { color: colors.textMuted, fontSize: 13, fontFamily: fonts.body },
   badge: {
-    borderRadius: 999,
+    borderRadius: radius.surface,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     alignSelf: "flex-start",
   },
-  badgeText: { fontSize: 11, fontWeight: "600" },
+  badgeText: { fontSize: 11, fontFamily: fonts.displayMedium },
   button: {
-    borderRadius: 10,
+    borderRadius: radius.button,
     paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: "center",
@@ -361,23 +362,25 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   buttonSmall: { paddingVertical: 7, paddingHorizontal: 12 },
-  buttonText: { fontSize: 15, fontWeight: "600" },
+  buttonText: { fontSize: 15, fontFamily: fonts.display },
   inputWrap: { marginBottom: 12 },
-  inputLabel: { fontSize: 13, fontWeight: "500", color: colors.textMuted, marginBottom: 4 },
+  inputLabel: { fontSize: 13, fontFamily: fonts.bodyMedium, color: colors.textMuted, marginBottom: 4 },
   input: {
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: radius.surface,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
     color: colors.text,
+    fontFamily: fonts.body,
+    ...shadows.input,
   },
   inputMultiline: { minHeight: 90, textAlignVertical: "top" },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
-    borderRadius: 999,
+    borderRadius: radius.button,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card,
@@ -385,11 +388,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 13, color: colors.text },
-  chipTextActive: { color: "#fff", fontWeight: "600" },
+  chipText: { fontSize: 13, color: colors.text, fontFamily: fonts.body },
+  chipTextActive: { color: "#fff", fontFamily: fonts.displayMedium },
   tile: {
     backgroundColor: colors.card,
-    borderRadius: 14,
+    borderRadius: radius.surface,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 14,
@@ -399,7 +402,7 @@ const styles = StyleSheet.create({
   tileIcon: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: radius.surface,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
@@ -410,14 +413,14 @@ const styles = StyleSheet.create({
     top: -6,
     right: -6,
     backgroundColor: colors.danger,
-    borderRadius: 999,
+    borderRadius: radius.surface,
     minWidth: 18,
     height: 18,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 4,
   },
-  tileBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  tileBadgeText: { color: "#fff", fontSize: 10, fontFamily: fonts.displayBold },
   checkRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -426,10 +429,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  checkLabel: { fontSize: 14, color: colors.text },
-  checkSublabel: { fontSize: 12, color: colors.textMuted },
-  tileTitle: { fontSize: 15, fontWeight: "600", color: colors.text },
-  tileSubtitle: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  checkLabel: { fontSize: 14, color: colors.text, fontFamily: fonts.body },
+  checkSublabel: { fontSize: 12, color: colors.textMuted, fontFamily: fonts.body },
+  tileTitle: { fontSize: 15, fontFamily: fonts.display, color: colors.text },
+  tileSubtitle: { fontSize: 12, color: colors.textMuted, marginTop: 2, fontFamily: fonts.body },
   kvRow: {
     flexDirection: "row",
     justifyContent: "space-between",

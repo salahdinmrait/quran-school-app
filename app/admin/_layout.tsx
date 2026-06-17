@@ -1,4 +1,5 @@
-import { Stack } from "expo-router";
+import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { RoleGuard } from "../../components/RoleGuard";
 import { LogoutButton } from "../../components/LogoutButton";
 import { colors } from "../../lib/theme";
@@ -6,21 +7,25 @@ import { colors } from "../../lib/theme";
 export default function AdminLayout() {
   return (
     <RoleGuard role="ADMIN">
-      <Stack
+      <Tabs
         screenOptions={{
           headerStyle: { backgroundColor: colors.card },
           headerTintColor: colors.text,
-          contentStyle: { backgroundColor: colors.bg },
+          headerRight: () => <LogoutButton />,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textMuted,
+          tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
+          tabBarLabelStyle: { fontSize: 11 },
         }}
       >
-        <Stack.Screen name="index" options={{ title: "Beheer", headerRight: () => <LogoutButton /> }} />
-        <Stack.Screen name="gebruikers" options={{ title: "Gebruikers" }} />
-        <Stack.Screen name="klassen" options={{ title: "Klassen" }} />
-        <Stack.Screen name="vakken" options={{ title: "Vakken" }} />
-        <Stack.Screen name="rooster" options={{ title: "Rooster" }} />
-        <Stack.Screen name="berichten" options={{ title: "Berichten" }} />
-        <Stack.Screen name="statistieken" options={{ title: "Statistieken" }} />
-      </Stack>
+        <Tabs.Screen name="index" options={{ href: null, headerShown: false }} />
+        <Tabs.Screen name="gebruikers" options={{ title: "Accounts", tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} /> }} />
+        <Tabs.Screen name="klassen" options={{ title: "Klassen", tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} /> }} />
+        <Tabs.Screen name="vakken" options={{ title: "Vakken", tabBarIcon: ({ color, size }) => <Ionicons name="library-outline" size={size} color={color} /> }} />
+        <Tabs.Screen name="rooster" options={{ title: "Rooster", tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} /> }} />
+        <Tabs.Screen name="berichten" options={{ title: "Berichten", tabBarIcon: ({ color, size }) => <Ionicons name="mail-outline" size={size} color={color} /> }} />
+        <Tabs.Screen name="statistieken" options={{ title: "Stats", tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart-outline" size={size} color={color} /> }} />
+      </Tabs>
     </RoleGuard>
   );
 }

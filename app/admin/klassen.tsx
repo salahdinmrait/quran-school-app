@@ -4,6 +4,7 @@ import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Muted, Empty, Button, Input, ChipSelect, CheckRow, Badge } from "../../components/ui";
 import { colors, CATEGORIE_LABELS } from "../../lib/theme";
+import { plural } from "../../lib/format";
 
 interface KlasSummary {
   id: string;
@@ -232,7 +233,7 @@ export default function AdminKlassen() {
             >
               <Text style={styles.title}>{k.naam}</Text>
               <Muted>
-                {k._count.leerlingen} leerlingen · {k._count.docenten} docenten · {k._count.vakken} vakken
+                {plural(k._count.leerlingen, "leerling", "leerlingen")} · {plural(k._count.docenten, "docent", "docenten")} · {plural(k._count.vakken, "vak", "vakken")}
               </Muted>
               {k.beschrijving ? <Muted style={{ marginTop: 2 }}>{k.beschrijving}</Muted> : null}
 

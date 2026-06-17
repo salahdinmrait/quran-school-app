@@ -28,7 +28,7 @@ type Tab = "inbox" | "verzonden" | "nieuw";
 
 export default function OuderBerichten() {
   const { data, setData, error, loading, refreshing, refresh, reload } =
-    useFetch<{ inbox: Bericht[]; verzonden: Bericht[] }>("/api/ouder/berichten");
+    useFetch<{ inbox: Bericht[]; verzonden: Bericht[]; admins: { id: string; name: string }[] }>("/api/ouder/berichten");
   const kinderen = useFetch<Kind[]>("/api/ouder/kind");
 
   const [tab, setTab] = useState<Tab>("inbox");
@@ -46,7 +46,7 @@ export default function OuderBerichten() {
   const inbox = data?.inbox ?? [];
   const verzonden = data?.verzonden ?? [];
 
-  // Alle docenten van de kinderen (gededupliceerd)
+  // Alle docenten van de kinderen (gededupliceerd) + het beheer
   const docenten = Array.from(
     new Map(
       (kinderen.data ?? [])
@@ -55,6 +55,10 @@ export default function OuderBerichten() {
         .map((d) => [d.docent.id, d.docent])
     ).values()
   );
+  const ontvangerOpties = [
+    ...docenten.map((d) => ({ value: d.id, label: `${d.name} (docent)` })),
+    ...(data?.admins ?? []).map((a) => ({ value: a.id, label: `${a.name} (beheer)` })),
+  ];
 
   function openBericht(b: Bericht) {
     const wasOpen = openId === b.id;
@@ -149,15 +153,15 @@ export default function OuderBerichten() {
 
       {tab === "nieuw" && (
         <Card>
-          {docenten.length === 0 ? (
+          {ontvangerOpties.length === 0 ? (
             <Muted>
-              Geen docenten gevonden — uw kind moet eerst aan een klas met docent gekoppeld zijn.
+              Geen contacten gevonden — je kind moet eerst aan een klas met docent gekoppeld zijn.
             </Muted>
           ) : (
             <>
               <ChipSelect
-                label="Docent"
-                options={docenten.map((d) => ({ value: d.id, label: d.name }))}
+                label="Aan"
+                options={ontvangerOpties}
                 value={docentId}
                 onChange={setDocentId}
               />

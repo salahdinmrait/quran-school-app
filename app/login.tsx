@@ -7,10 +7,10 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/api";
 import { Button, Input } from "../components/ui";
+import { Logo } from "../components/Logo";
 import { colors } from "../lib/theme";
 
 export default function LoginScreen() {
@@ -40,10 +40,9 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.inner}>
-        <View style={styles.logoBox}>
-          <Ionicons name="book" size={36} color={colors.primary} />
+        <View style={styles.logoWrap}>
+          <Logo size={52} />
         </View>
-        <Text style={styles.appTitle}>QuranMagister</Text>
         <Text style={styles.appSubtitle}>Log in met je schoolaccount</Text>
 
         <Input
@@ -78,22 +77,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, justifyContent: "center" },
   inner: { padding: 24 },
-  logoBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-    alignSelf: "center",
-    marginBottom: 12,
-  },
-  appTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: colors.text,
-    textAlign: "center",
-  },
+  logoWrap: { alignSelf: "center", marginBottom: 10 },
   appSubtitle: {
     fontSize: 14,
     color: colors.textMuted,

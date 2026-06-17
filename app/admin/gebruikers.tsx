@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Alert } from "react-native";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
-import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
+import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect, CheckRow } from "../../components/ui";
 import { colors, ROLE_LABELS } from "../../lib/theme";
 
 interface Gebruiker {
@@ -12,6 +12,7 @@ interface Gebruiker {
   email: string;
   role: string;
   actief: boolean;
+  isVolwassen?: boolean;
 }
 
 interface Kind {
@@ -27,6 +28,7 @@ export default function AdminGebruikers() {
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Gebruiker[]>("/api/gebruikers");
 
   const [filter, setFilter] = useState<string>("ALLE");
+  const [zoek, setZoek] = useState("");
 
   // Nieuw account
   const [showForm, setShowForm] = useState(false);
@@ -34,6 +36,7 @@ export default function AdminGebruikers() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<RoleOption>("LEERLING");
+  const [isVolwassen, setIsVolwassen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<string | null>(null);
@@ -44,6 +47,7 @@ export default function AdminGebruikers() {
   const [editEmail, setEditEmail] = useState("");
   const [editRole, setEditRole] = useState<RoleOption>("LEERLING");
   const [editActief, setEditActief] = useState(true);
+  const [editVolwassen, setEditVolwassen] = useState(false);
   const [nieuwWachtwoord, setNieuwWachtwoord] = useState("");
   const [busy, setBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -70,7 +74,10 @@ export default function AdminGebruikers() {
   if (loading) return <Loading />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
 
-  const gebruikers = (data ?? []).filter((g) => filter === "ALLE" || g.role === filter);
+  const q = zoek.trim().toLowerCase();
+  const gebruikers = (data ?? [])
+    .filter((g) => filter === "ALLE" || g.role === filter)
+    .filter((g) => !q || g.name.toLowerCase().includes(q) || g.email.toLowerCase().includes(q));
   const leerlingen = (data ?? []).filter((g) => g.role === "LEERLING");
   const koppelbaar = leerlingen.filter((l) => !kinderen.some((k) => k.id === l.id));
 
@@ -82,12 +89,13 @@ export default function AdminGebruikers() {
     try {
       await api("/api/gebruikers", {
         method: "POST",
-        body: JSON.stringify({ name, email, password, role }),
+        body: JSON.stringify({ name, email, password, role, isVolwassen: role === "LEERLING" ? isVolwassen : false }),
       });
       setCreated(`Account voor ${name} aangemaakt ✓`);
       setName("");
       setEmail("");
       setPassword("");
+      setIsVolwassen(false);
       await reload();
     } catch (e) {
       setFormError(e instanceof ApiError ? e.message : "Kon gebruiker niet aanmaken");
@@ -107,6 +115,7 @@ export default function AdminGebruikers() {
       setEditEmail(g.email);
       setEditRole(g.role as RoleOption);
       setEditActief(g.actief);
+      setEditVolwassen(!!g.isVolwassen);
     }
   }
 
@@ -122,6 +131,7 @@ export default function AdminGebruikers() {
           email: editEmail,
           role: editRole,
           actief: editActief,
+          isVolwassen: editRole === "LEERLING" ? editVolwassen : false,
           ...(nieuwWachtwoord ? { nieuwWachtwoord } : {}),
         }),
       });
@@ -216,6 +226,14 @@ export default function AdminGebruikers() {
           <Input label="Naam" value={name} onChangeText={setName} />
           <Input label="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
           <Input label="Wachtwoord (min. 8 tekens)" value={password} onChangeText={setPassword} autoCapitalize="none" />
+          {role === "LEERLING" && (
+            <CheckRow
+              label="18+ zonder ouder-account"
+              sublabel="Mag zelf gesprekken starten met docent en beheer"
+              checked={isVolwassen}
+              onToggle={() => setIsVolwassen(!isVolwassen)}
+            />
+          )}
           {formError && <Text style={styles.error}>{formError}</Text>}
           {created && <Text style={styles.success}>{created}</Text>}
           <Button
@@ -227,6 +245,7 @@ export default function AdminGebruikers() {
         </Card>
       )}
 
+      <Input label="Zoeken" value={zoek} onChangeText={setZoek} placeholder="Zoek op naam of e-mail..." autoCapitalize="none" />
       <ChipSelect
         label="Filter"
         options={[
@@ -253,6 +272,7 @@ export default function AdminGebruikers() {
                   <Muted>{g.email}</Muted>
                 </View>
                 <Badge text={ROLE_LABELS[g.role] ?? g.role} />
+                {g.role === "LEERLING" && g.isVolwassen && <Badge text="18+" bg={colors.infoLight} fg={colors.info} />}
                 {!g.actief && <Badge text="inactief" bg={colors.dangerLight} fg={colors.danger} />}
               </View>
 
@@ -280,6 +300,14 @@ export default function AdminGebruikers() {
                     value={editActief ? "actief" : "inactief"}
                     onChange={(v) => setEditActief(v === "actief")}
                   />
+                  {editRole === "LEERLING" && (
+                    <CheckRow
+                      label="18+ zonder ouder-account"
+                      sublabel="Mag zelf gesprekken starten"
+                      checked={editVolwassen}
+                      onToggle={() => setEditVolwassen(!editVolwassen)}
+                    />
+                  )}
                   <Input
                     label="Nieuw wachtwoord (leeg = niet wijzigen)"
                     value={nieuwWachtwoord}

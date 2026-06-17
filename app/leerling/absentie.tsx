@@ -27,12 +27,43 @@ export default function LeerlingAbsentie() {
   const aanwezig = records.filter((r) => r.status === "AANWEZIG").length;
   const pct = records.length > 0 ? Math.round((aanwezig / records.length) * 100) : null;
 
+  // Uitsplitsing per klas
+  const perKlas = new Map<string, { naam: string; aanwezig: number; totaal: number }>();
+  for (const r of records) {
+    const naam = r.les.klas.naam;
+    const e = perKlas.get(naam) ?? { naam, aanwezig: 0, totaal: 0 };
+    e.totaal += 1;
+    if (r.status === "AANWEZIG") e.aanwezig += 1;
+    perKlas.set(naam, e);
+  }
+  const klasPcts = Array.from(perKlas.values()).map((k) => ({
+    naam: k.naam,
+    pct: Math.round((k.aanwezig / k.totaal) * 100),
+    totaal: k.totaal,
+  }));
+
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
       {pct !== null && (
         <Card style={styles.statCard}>
           <Text style={styles.statValue}>{pct}%</Text>
           <Muted>aanwezig over {records.length} lessen</Muted>
+        </Card>
+      )}
+
+      {klasPcts.length > 1 && (
+        <Card>
+          <Text style={styles.cardSub}>Per klas</Text>
+          {klasPcts.map((k) => (
+            <View key={k.naam} style={styles.klasRow}>
+              <Text style={styles.klasNaam}>{k.naam}</Text>
+              <Badge
+                text={`${k.pct}%`}
+                bg={k.pct >= 80 ? colors.successLight : colors.warningLight}
+                fg={k.pct >= 80 ? colors.primaryDark : colors.warning}
+              />
+            </View>
+          ))}
         </Card>
       )}
 
@@ -66,6 +97,9 @@ export default function LeerlingAbsentie() {
 const styles = StyleSheet.create({
   statCard: { alignItems: "center", backgroundColor: colors.primaryLight, borderColor: colors.primary },
   statValue: { fontSize: 32, fontWeight: "800", color: colors.primaryDark },
+  cardSub: { fontSize: 13, fontWeight: "600", color: colors.textMuted, marginBottom: 6 },
+  klasRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
+  klasNaam: { fontSize: 14, color: colors.text, fontWeight: "500" },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
 });

@@ -4,6 +4,8 @@ import { useFetch } from "../lib/useFetch";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect, CheckRow } from "./ui";
+import { LinkText } from "./LinkText";
+import { pickBijlage, openAttachment, GekozenBijlage } from "../lib/bijlage";
 import { colors, ROLE_LABELS } from "../lib/theme";
 import { fmtDatumTijd } from "../lib/format";
 
@@ -24,6 +26,7 @@ interface BerichtIn {
   inhoud: string;
   gelezen: boolean;
   createdAt: string;
+  hasBijlage?: boolean;
   verzender: { id: string; name: string; role: string };
   replies: ThreadMessage[];
   replyTo: ThreadMessage | null;
@@ -36,6 +39,7 @@ interface BerichtUit {
   createdAt: string;
   doelLabel: string | null;
   aantalOntvangers: number;
+  hasBijlage?: boolean;
   ontvanger: { id: string; name: string; role: string } | null;
   replies: ThreadMessage[];
 }
@@ -52,7 +56,7 @@ interface TargetKlas {
 type TargetsResponse = TargetKlas[] | { klassen: TargetKlas[]; docenten: { id: string; name: string }[] };
 
 type Tab = "inbox" | "verzonden" | "nieuw";
-type DoelType = "LEERLINGEN" | "OUDERS" | "DOCENTEN" | "KLAS_LEERLINGEN" | "KLAS_OUDERS";
+type DoelType = "LEERLINGEN" | "OUDERS" | "DOCENTEN" | "BEHEER" | "KLAS_LEERLINGEN" | "KLAS_OUDERS";
 
 export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) {
   const { user } = useAuth();
@@ -73,6 +77,7 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
   const [zoek, setZoek] = useState("");
   const [onderwerp, setOnderwerp] = useState("");
   const [inhoud, setInhoud] = useState("");
+  const [bijlage, setBijlage] = useState<GekozenBijlage | null>(null);
   const [sent, setSent] = useState<string | null>(null);
 
   const klassen: TargetKlas[] = useMemo(
@@ -111,6 +116,14 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
   const inbox = data?.inbox ?? [];
   const verzonden = data?.verzonden ?? [];
   const isKlasBroadcast = doelType === "KLAS_LEERLINGEN" || doelType === "KLAS_OUDERS";
+  const isBeheer = doelType === "BEHEER";
+
+  async function kiesBijlage() {
+    setSendError(null);
+    const { bijlage: b, error: e } = await pickBijlage();
+    if (e) setSendError(e);
+    else if (b) setBijlage(b);
+  }
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -184,8 +197,11 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
       const body: Record<string, unknown> = {
         onderwerp: onderwerp.trim(),
         inhoud: inhoud.trim(),
+        ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageData: bijlage.data, bijlageType: bijlage.type } : {}),
       };
-      if (isKlasBroadcast) {
+      if (isBeheer) {
+        body.doelType = "ADMINS";
+      } else if (isKlasBroadcast) {
         if (!klasId) {
           setSendError("Kies een klas");
           setSending(false);
@@ -209,6 +225,7 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
       setSent(`Verstuurd naar ${res.count} ontvanger${res.count === 1 ? "" : "s"} ✓`);
       setOnderwerp("");
       setInhoud("");
+      setBijlage(null);
       setSelectedIds(new Set());
       refresh();
     } catch (e) {
@@ -221,7 +238,9 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
   const doelOptions: { value: DoelType; label: string }[] = [
     { value: "LEERLINGEN", label: "Leerling(en)" },
     { value: "OUDERS", label: "Ouder(s)" },
-    ...(isAdmin ? [{ value: "DOCENTEN" as DoelType, label: "Docent(en)" }] : []),
+    ...(isAdmin
+      ? [{ value: "DOCENTEN" as DoelType, label: "Docent(en)" }]
+      : [{ value: "BEHEER" as DoelType, label: "Beheer" }]),
     { value: "KLAS_LEERLINGEN", label: "Hele klas" },
     { value: "KLAS_OUDERS", label: "Ouders v.d. klas" },
   ];
@@ -267,13 +286,16 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
                         <Text style={styles.contextText}>{b.replyTo.inhoud}</Text>
                       </View>
                     )}
-                    <Text style={styles.inhoud}>{b.inhoud}</Text>
+                    <LinkText style={styles.inhoud}>{b.inhoud}</LinkText>
+                    {b.hasBijlage ? (
+                      <Text style={styles.bijlageLink} onPress={() => openAttachment("bericht", b.id)}>📎 Bijlage openen</Text>
+                    ) : null}
                     {b.replies.map((r) => (
                       <View key={r.id} style={styles.replyBox}>
                         <Muted>
                           {r.verzender.id === user?.id ? "Jij" : r.verzender.name} · {fmtDatumTijd(r.createdAt)}
                         </Muted>
-                        <Text style={styles.replyText}>{r.inhoud}</Text>
+                        <LinkText style={styles.replyText}>{r.inhoud}</LinkText>
                       </View>
                     ))}
                     <Input value={replyText} onChangeText={setReplyText} placeholder="Schrijf een reactie..." multiline />
@@ -308,14 +330,17 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
                 </View>
                 {expanded && (
                   <View style={styles.detail}>
-                    <Text style={styles.inhoud}>{b.inhoud}</Text>
+                    <LinkText style={styles.inhoud}>{b.inhoud}</LinkText>
+                    {b.hasBijlage ? (
+                      <Text style={styles.bijlageLink} onPress={() => openAttachment("bericht", b.id)}>📎 Bijlage openen</Text>
+                    ) : null}
                     {b.replies.map((r) => (
                       <View key={r.id} style={styles.replyBox}>
                         <Muted>
                           {r.verzender.name} ({ROLE_LABELS[r.verzender.role] ?? r.verzender.role}) ·{" "}
                           {fmtDatumTijd(r.createdAt)}
                         </Muted>
-                        <Text style={styles.replyText}>{r.inhoud}</Text>
+                        <LinkText style={styles.replyText}>{r.inhoud}</LinkText>
                       </View>
                     ))}
                   </View>
@@ -339,7 +364,9 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
             }}
           />
 
-          {isKlasBroadcast ? (
+          {isBeheer ? (
+            <Muted style={{ marginBottom: 8 }}>Dit bericht gaat naar het beheer van de school.</Muted>
+          ) : isKlasBroadcast ? (
             <ChipSelect
               label="Klas"
               options={klassen.map((k) => ({
@@ -397,13 +424,26 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
 
           <Input label="Onderwerp" value={onderwerp} onChangeText={setOnderwerp} placeholder="Onderwerp" />
           <Input label="Bericht" value={inhoud} onChangeText={setInhoud} multiline placeholder="Typ je bericht..." />
+          <View style={styles.bijlageRow}>
+            {bijlage ? (
+              <>
+                <Text style={styles.bijlageNaam} numberOfLines={1}>📎 {bijlage.naam}</Text>
+                <Button small title="Verwijderen" variant="ghost" onPress={() => setBijlage(null)} />
+              </>
+            ) : (
+              <Button small title="Bestand bijvoegen" variant="secondary" onPress={kiesBijlage} />
+            )}
+          </View>
           {sendError && <Text style={styles.error}>{sendError}</Text>}
           {sent && <Text style={styles.success}>{sent}</Text>}
           <Button
             title="Versturen"
             onPress={sendNieuw}
             loading={sending}
-            disabled={!onderwerp.trim() || !inhoud.trim() || (isKlasBroadcast ? !klasId : selectedIds.size === 0)}
+            disabled={
+              !onderwerp.trim() || !inhoud.trim() ||
+              (isBeheer ? false : isKlasBroadcast ? !klasId : selectedIds.size === 0)
+            }
           />
         </Card>
       )}
@@ -431,6 +471,9 @@ const styles = StyleSheet.create({
   unread: { fontWeight: "700" },
   detail: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
   inhoud: { fontSize: 14, color: colors.text, marginBottom: 8 },
+  bijlageLink: { color: colors.info, fontSize: 14, textDecorationLine: "underline", marginBottom: 8 },
+  bijlageRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 },
+  bijlageNaam: { flex: 1, fontSize: 14, color: colors.text },
   contextBox: {
     backgroundColor: colors.bg,
     borderRadius: 8,

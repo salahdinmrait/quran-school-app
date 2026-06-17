@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Linking, Alert } from "react-native";
+import { View, Text, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { useFetch } from "../../lib/useFetch";
-import { api, ApiError, getApiUrl, getAuthToken } from "../../lib/api";
+import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
+import { LinkText } from "../../components/LinkText";
+import { openAttachment } from "../../lib/bijlage";
 import { colors } from "../../lib/theme";
 import { fmtDatum, isVerlopen } from "../../lib/format";
 import type { DocentKlas } from "./klassen";
@@ -23,12 +25,13 @@ interface KlasRanking {
   totaalHw: number;
 }
 
-const MEDAILLES = ["🥇", "🥈", "🥉"];
-
 interface Inlevering {
   id: string;
+  inhoud: string;
   createdAt: string;
   opmerking: string | null;
+  bijlageNaam: string | null;
+  hasBijlage: boolean;
   leerling: { id: string; name: string };
 }
 
@@ -43,6 +46,7 @@ interface Huiswerk {
   bijlageNaam: string | null;
   hasBijlage: boolean;
   inleveringen: Inlevering[];
+  doelLeerlingen?: { leerling: { id: string; name: string } }[];
 }
 
 export default function DocentHuiswerk() {
@@ -84,6 +88,10 @@ export default function DocentHuiswerk() {
   // Leerlingen that this huiswerk applies to: klas of linked les,
   // otherwise every klas (of this docent) that has the vak.
   function leerlingenVoor(h: Huiswerk): { id: string; name: string }[] {
+    // Gericht op specifieke leerlingen → alleen die
+    if (h.doelLeerlingen && h.doelLeerlingen.length > 0) {
+      return h.doelLeerlingen.map((d) => d.leerling);
+    }
     if (h.les) {
       const klas = klassen.find((k) => k.id === h.les!.klas.id);
       if (klas) return klas.leerlingen;
@@ -132,11 +140,6 @@ export default function DocentHuiswerk() {
     }
   }
 
-  function openBijlage(h: Huiswerk) {
-    const token = getAuthToken();
-    Linking.openURL(`${getApiUrl()}/api/bijlage/${h.id}?token=${encodeURIComponent(token ?? "")}`);
-  }
-
   function confirmDeleteHuiswerk(h: Huiswerk) {
     Alert.alert("Huiswerk verwijderen", `"${h.titel}" verwijderen?`, [
       { text: "Annuleren", style: "cancel" },
@@ -163,7 +166,7 @@ export default function DocentHuiswerk() {
       {/* Klassement */}
       {activeRanking && activeRanking.totaalHw > 0 && activeRanking.top3.length > 0 && (
         <Card style={{ borderColor: colors.warning, backgroundColor: colors.warningLight }}>
-          <Text style={styles.rankTitle}>🏆 Klassement</Text>
+          <Text style={styles.rankTitle}>Klassement</Text>
           {rankings.length > 1 && (
             <ChipSelect
               options={rankings.map((r) => ({ value: r.klasId, label: r.klasNaam }))}
@@ -173,7 +176,9 @@ export default function DocentHuiswerk() {
           )}
           {activeRanking.top3.map((item) => (
             <View key={item.leerling.id} style={styles.rankRow}>
-              <Text style={styles.rankMedal}>{MEDAILLES[item.positie - 1]}</Text>
+              <View style={[styles.rankNum, item.positie === 1 && styles.rankNumLead]}>
+                <Text style={[styles.rankNumText, item.positie === 1 && styles.rankNumTextLead]}>{item.positie}</Text>
+              </View>
               <Text style={styles.rankNaam}>{item.leerling.name}</Text>
               <Text style={styles.rankPct}>{item.percentage}%</Text>
               <Muted>
@@ -211,11 +216,14 @@ export default function DocentHuiswerk() {
 
               {expanded && (
                 <View style={styles.detail}>
-                  {h.beschrijving ? <Text style={styles.beschrijving}>{h.beschrijving}</Text> : null}
+                  {h.beschrijving ? <LinkText style={styles.beschrijving}>{h.beschrijving}</LinkText> : null}
                   {h.hasBijlage && (
-                    <Text style={styles.bijlage} onPress={() => openBijlage(h)}>
+                    <Text style={styles.bijlage} onPress={() => openAttachment("huiswerk", h.id)}>
                       📎 {h.bijlageNaam ?? "Bijlage openen"}
                     </Text>
+                  )}
+                  {h.doelLeerlingen && h.doelLeerlingen.length > 0 && (
+                    <Muted>Alleen voor: {h.doelLeerlingen.map((d) => d.leerling.name).join(", ")}</Muted>
                   )}
                   <Button small title="Huiswerk verwijderen" variant="danger" onPress={() => confirmDeleteHuiswerk(h)} />
 
@@ -242,6 +250,17 @@ export default function DocentHuiswerk() {
                           </View>
                           {inlevering && (
                             <View style={styles.opmerkingArea}>
+                              {inlevering.inhoud && inlevering.inhoud !== "✓" ? (
+                                <View style={styles.inleverBox}>
+                                  <Muted>Ingeleverd:</Muted>
+                                  <Text style={styles.inleverText}>{inlevering.inhoud}</Text>
+                                </View>
+                              ) : null}
+                              {inlevering.hasBijlage ? (
+                                <Text style={styles.bijlage} onPress={() => openAttachment("inlevering", inlevering.id)}>
+                                  📎 {inlevering.bijlageNaam ?? "Ingeleverd bestand"}
+                                </Text>
+                              ) : null}
                               {inlevering.opmerking ? (
                                 <Muted>Opmerking: {inlevering.opmerking}</Muted>
                               ) : null}
@@ -310,12 +329,17 @@ const styles = StyleSheet.create({
   leerlingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   leerlingNaam: { fontSize: 14, color: colors.text, flex: 1 },
   opmerkingArea: { paddingLeft: 4, paddingBottom: 4 },
+  inleverBox: { backgroundColor: colors.bg, borderRadius: 8, padding: 8, marginVertical: 4 },
+  inleverText: { fontSize: 13, color: colors.text },
   opmerkingLink: { color: colors.info, fontSize: 13, paddingVertical: 2 },
   opmerkingButtons: { flexDirection: "row", gap: 8 },
   error: { color: colors.danger, fontSize: 13, marginBottom: 4 },
   rankTitle: { fontSize: 15, fontWeight: "700", color: colors.text, marginBottom: 8 },
   rankRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
-  rankMedal: { fontSize: 18, width: 28, textAlign: "center" },
+  rankNum: { width: 24, height: 24, borderWidth: 1, borderColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  rankNumLead: { backgroundColor: colors.primary },
+  rankNumText: { fontSize: 13, fontWeight: "700", color: colors.primaryDark },
+  rankNumTextLead: { color: "#fff" },
   rankNaam: { flex: 1, fontSize: 14, fontWeight: "500", color: colors.text },
   rankPct: { fontSize: 14, fontWeight: "700", color: colors.primaryDark },
 });

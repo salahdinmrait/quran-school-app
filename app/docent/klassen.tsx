@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from "react-native";
 import { useFetch } from "../../lib/useFetch";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty } from "../../components/ui";
 import { colors, CATEGORIE_LABELS } from "../../lib/theme";
+import { plural } from "../../lib/format";
 
 export interface DocentKlas {
   id: string;
@@ -32,7 +33,7 @@ export default function DocentKlassen() {
             <Card key={k.id} onPress={() => setOpenId(expanded ? null : k.id)}>
               <Text style={styles.title}>{k.naam}</Text>
               <Muted>
-                {k.leerlingen.length} leerlingen · {k.vakken.length} vakken
+                {plural(k.leerlingen.length, "leerling", "leerlingen")} · {plural(k.vakken.length, "vak", "vakken")}
               </Muted>
               <View style={styles.badges}>
                 {k.vakken.map((v) => (
