@@ -30,6 +30,7 @@ export default function DocentLayout() {
         <Tabs.Screen name="studiemateriaal" options={{ href: null, title: "Studiemateriaal" }} />
         <Tabs.Screen name="statistieken" options={{ href: null, title: "Statistieken" }} />
         <Tabs.Screen name="huiswerk-nieuw" options={{ href: null, title: "Nieuw huiswerk" }} />
+        <Tabs.Screen name="leerling-dossier" options={{ href: null, title: "Leerlingendossier" }} />
       </Tabs>
     </RoleGuard>
   );

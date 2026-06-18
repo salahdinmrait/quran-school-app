@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useFetch } from "../../lib/useFetch";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty } from "../../components/ui";
 import { colors, CATEGORIE_LABELS } from "../../lib/theme";
@@ -14,6 +16,7 @@ export interface DocentKlas {
 }
 
 export default function DocentKlassen() {
+  const router = useRouter();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<DocentKlas[]>("/api/docent/klassen");
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -48,9 +51,18 @@ export default function DocentKlassen() {
                     <Muted>Geen leerlingen.</Muted>
                   ) : (
                     k.leerlingen.map((l) => (
-                      <Text key={l.id} style={styles.personRow}>
-                        • {l.name}
-                      </Text>
+                      <Pressable
+                        key={l.id}
+                        style={({ pressed }) => [styles.leerlingRow, pressed && { opacity: 0.6 }]}
+                        onPress={() => router.push(`/docent/leerling-dossier?leerlingId=${l.id}&naam=${encodeURIComponent(l.name)}`)}
+                      >
+                        <Text style={styles.personRow}>{l.name}</Text>
+                        <View style={styles.dossierHint}>
+                          <Ionicons name="document-text-outline" size={14} color={colors.primary} />
+                          <Text style={styles.dossierHintText}>Dossier</Text>
+                          <Ionicons name="chevron-forward" size={14} color={colors.textFaint} />
+                        </View>
+                      </Pressable>
                     ))
                   )}
                   <Text style={styles.subTitle}>Ouders</Text>
@@ -79,5 +91,15 @@ const styles = StyleSheet.create({
   detail: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 },
   subTitle: { fontSize: 13, fontWeight: "600", color: colors.textMuted, marginTop: 8, marginBottom: 4 },
   personRow: { fontSize: 14, color: colors.text, paddingVertical: 2 },
+  leerlingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  dossierHint: { flexDirection: "row", alignItems: "center", gap: 3 },
+  dossierHintText: { fontSize: 12, color: colors.primary, fontWeight: "600" },
   kindNaam: { color: colors.textMuted, fontSize: 13 },
 });

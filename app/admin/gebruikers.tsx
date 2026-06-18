@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Alert } from "react-native";
+import { useRouter } from "expo-router";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
@@ -24,6 +25,7 @@ interface Kind {
 type RoleOption = "ADMIN" | "DOCENT" | "LEERLING" | "OUDER";
 
 export default function AdminGebruikers() {
+  const router = useRouter();
   const { user: me } = useAuth();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Gebruiker[]>("/api/gebruikers");
 
@@ -348,6 +350,15 @@ export default function AdminGebruikers() {
                         </View>
                       )}
                     </View>
+                  )}
+
+                  {g.role === "LEERLING" && (
+                    <Button
+                      small
+                      title="📋 Leerlingendossier openen"
+                      variant="secondary"
+                      onPress={() => router.push(`/admin/leerling-dossier?leerlingId=${g.id}&naam=${encodeURIComponent(g.name)}`)}
+                    />
                   )}
 
                   {editError && <Text style={styles.error}>{editError}</Text>}
