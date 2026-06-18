@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import * as SecureStore from "expo-secure-store";
+import { getItem, setItem, deleteItem } from "./storage";
 import { api, setAuthToken } from "./api";
 
 export type Role = "ADMIN" | "DOCENT" | "LEERLING" | "OUDER";
@@ -46,8 +46,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const [token, userJson] = await Promise.all([
-          SecureStore.getItemAsync(TOKEN_KEY),
-          SecureStore.getItemAsync(USER_KEY),
+          getItem(TOKEN_KEY),
+          getItem(USER_KEY),
         ]);
         if (token && userJson) {
           setAuthToken(token);
@@ -68,8 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     setAuthToken(data.token);
     await Promise.all([
-      SecureStore.setItemAsync(TOKEN_KEY, data.token),
-      SecureStore.setItemAsync(USER_KEY, JSON.stringify(data.user)),
+      setItem(TOKEN_KEY, data.token),
+      setItem(USER_KEY, JSON.stringify(data.user)),
     ]);
     setUser(data.user);
   }, []);
@@ -77,8 +77,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     setAuthToken(null);
     await Promise.all([
-      SecureStore.deleteItemAsync(TOKEN_KEY),
-      SecureStore.deleteItemAsync(USER_KEY),
+      deleteItem(TOKEN_KEY),
+      deleteItem(USER_KEY),
     ]);
     setUser(null);
   }, []);

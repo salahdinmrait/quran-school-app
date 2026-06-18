@@ -1,11 +1,16 @@
+import { Platform } from "react-native";
 import Constants from "expo-constants";
 
-// Backend base URL. Override at build/dev time with EXPO_PUBLIC_API_URL,
-// otherwise app.json → expo.extra.apiUrl is used.
+// Backend base URL.
+// - Web: leeg = relatief = zelfde origin. Vercel proxyt /api naar de backend,
+//   zodat de browser geen CORS-probleem heeft.
+// - Native (iOS/Android): de absolute backend-URL (EXPO_PUBLIC_API_URL of app.json).
 const API_URL: string =
-  process.env.EXPO_PUBLIC_API_URL ??
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
-  "http://localhost:3000";
+  Platform.OS === "web"
+    ? (process.env.EXPO_PUBLIC_API_URL ?? "")
+    : (process.env.EXPO_PUBLIC_API_URL ??
+       (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
+       "http://localhost:3000");
 
 export class ApiError extends Error {
   status: number;
