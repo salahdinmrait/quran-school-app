@@ -31,7 +31,8 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
-      "output": "single"
+      "output": "single",
+      "lang": "nl"
     },
     "extra": {
       "apiUrl": "https://quran-school-lms.vercel.app"
