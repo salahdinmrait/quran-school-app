@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
+import { bevestig } from "../../lib/confirm";
 import { useRouter } from "expo-router";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
@@ -148,25 +149,18 @@ export default function AdminGebruikers() {
   }
 
   function confirmDelete(g: Gebruiker) {
-    Alert.alert("Gebruiker verwijderen", `"${g.name}" definitief verwijderen?`, [
-      { text: "Annuleren", style: "cancel" },
-      {
-        text: "Verwijderen",
-        style: "destructive",
-        onPress: async () => {
-          setBusy(true);
-          try {
-            await api(`/api/gebruikers/${g.id}`, { method: "DELETE" });
-            setEditId(null);
-            await reload();
-          } catch (e) {
-            setEditError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
-          } finally {
-            setBusy(false);
-          }
-        },
-      },
-    ]);
+    bevestig("Gebruiker verwijderen", `"${g.name}" naar het archief verplaatsen?`, async () => {
+      setBusy(true);
+      try {
+        await api(`/api/gebruikers/${g.id}`, { method: "DELETE" });
+        setEditId(null);
+        await reload();
+      } catch (e) {
+        setEditError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+      } finally {
+        setBusy(false);
+      }
+    });
   }
 
   async function koppelKind(ouderId: string) {
@@ -210,6 +204,12 @@ export default function AdminGebruikers() {
         title={showForm ? "Formulier sluiten" : "+ Nieuw account"}
         variant={showForm ? "secondary" : "primary"}
         onPress={() => setShowForm(!showForm)}
+      />
+      <Button
+        small
+        title="🗃️ Archief (verwijderde items)"
+        variant="ghost"
+        onPress={() => router.push("/admin/archief")}
       />
 
       {showForm && (
@@ -267,8 +267,9 @@ export default function AdminGebruikers() {
         gebruikers.map((g) => {
           const expanded = editId === g.id;
           return (
-            <Card key={g.id} onPress={() => openEdit(g)}>
-              <View style={styles.row}>
+            <Card key={g.id}>
+              {/* Alleen de kop-rij toggle't — anders klapt de kaart op web dicht bij klikken in het formulier */}
+              <Pressable onPress={() => openEdit(g)} style={styles.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.title}>{g.name}</Text>
                   <Muted>{g.email}</Muted>
@@ -276,7 +277,7 @@ export default function AdminGebruikers() {
                 <Badge text={ROLE_LABELS[g.role] ?? g.role} />
                 {g.role === "LEERLING" && g.isVolwassen && <Badge text="18+" bg={colors.infoLight} fg={colors.info} />}
                 {!g.actief && <Badge text="inactief" bg={colors.dangerLight} fg={colors.danger} />}
-              </View>
+              </Pressable>
 
               {expanded && (
                 <View style={styles.detail}>

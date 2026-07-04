@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, Alert, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { bevestig } from "../../lib/confirm";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Loading, ErrorView, Card, Muted, Button, Input, ChipSelect } from "../../components/ui";
@@ -80,19 +81,12 @@ export default function DocentRooster() {
   }
 
   function confirmDeleteLes(l: Les) {
-    Alert.alert("Les verwijderen", `${l.klas.naam} op ${fmtDatumKort(l.datum)} verwijderen?`, [
-      { text: "Annuleren", style: "cancel" },
-      {
-        text: "Verwijderen",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await api(`/api/lessen/${l.id}`, { method: "DELETE" });
-            await ls.reload();
-          } catch { /* noop */ }
-        },
-      },
-    ]);
+    bevestig("Les verwijderen", `${l.klas.naam} op ${fmtDatumKort(l.datum)} verwijderen?`, async () => {
+      try {
+        await api(`/api/lessen/${l.id}`, { method: "DELETE" });
+        await ls.reload();
+      } catch { /* noop */ }
+    });
   }
 
   const events: AgendaEvent[] = lessen.map((l) => ({

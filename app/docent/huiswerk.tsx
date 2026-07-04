@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
+import { bevestig } from "../../lib/confirm";
 import { useRouter } from "expo-router";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
@@ -141,22 +142,15 @@ export default function DocentHuiswerk() {
   }
 
   function confirmDeleteHuiswerk(h: Huiswerk) {
-    Alert.alert("Huiswerk verwijderen", `"${h.titel}" verwijderen?`, [
-      { text: "Annuleren", style: "cancel" },
-      {
-        text: "Verwijderen",
-        style: "destructive",
-        onPress: async () => {
-          setActionError(null);
-          try {
-            await api(`/api/docent/huiswerk/${h.id}`, { method: "DELETE" });
-            await hw.reload();
-          } catch (e) {
-            setActionError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
-          }
-        },
-      },
-    ]);
+    bevestig("Huiswerk verwijderen", `"${h.titel}" verwijderen?`, async () => {
+      setActionError(null);
+      try {
+        await api(`/api/docent/huiswerk/${h.id}`, { method: "DELETE" });
+        await hw.reload();
+      } catch (e) {
+        setActionError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+      }
+    });
   }
 
   return (
@@ -197,8 +191,9 @@ export default function DocentHuiswerk() {
           const leerlingen = leerlingenVoor(h);
           const doneIds = new Set(h.inleveringen.map((i) => i.leerling.id));
           return (
-            <Card key={h.id} onPress={() => setOpenId(expanded ? null : h.id)}>
-              <View style={styles.row}>
+            <Card key={h.id}>
+              {/* Alleen de kop-rij toggle't — anders klapt de kaart op web dicht bij klikken in het opmerking-veld */}
+              <Pressable onPress={() => setOpenId(expanded ? null : h.id)} style={styles.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.title}>{h.titel}</Text>
                   <Muted>
@@ -212,7 +207,7 @@ export default function DocentHuiswerk() {
                   fg={doneIds.size === leerlingen.length && leerlingen.length > 0 ? colors.primaryDark : colors.warning}
                 />
                 {isVerlopen(h.deadline) && <Badge text="verlopen" bg={colors.dangerLight} fg={colors.danger} />}
-              </View>
+              </Pressable>
 
               {expanded && (
                 <View style={styles.detail}>

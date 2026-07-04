@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
+import { bevestig } from "../../lib/confirm";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Muted, Empty, Button, Input, ChipSelect, CheckRow, Badge } from "../../components/ui";
@@ -138,39 +139,26 @@ export default function AdminKlassen() {
   }
 
   function confirmDeleteKlas(k: KlasDetail) {
-    Alert.alert(
+    bevestig(
       "Klas verwijderen",
-      `"${k.naam}" verwijderen? Dit verwijdert ook alle lessen, huiswerk en aanwezigheid van deze klas.`,
-      [
-        { text: "Annuleren", style: "cancel" },
-        {
-          text: "Verwijderen",
-          style: "destructive",
-          onPress: () =>
-            doAction(async () => {
-              await api(`/api/klassen/${k.id}`, { method: "DELETE" });
-              setOpenId(null);
-            }, true),
-        },
-      ]
+      `"${k.naam}" naar het archief verplaatsen?`,
+      () =>
+        doAction(async () => {
+          await api(`/api/klassen/${k.id}`, { method: "DELETE" });
+          setOpenId(null);
+        }, true)
     );
   }
 
   function confirmRemoveLeerling(klasId: string, l: { id: string; name: string }) {
-    Alert.alert("Leerling verwijderen", `${l.name} uit deze klas halen?`, [
-      { text: "Annuleren", style: "cancel" },
-      {
-        text: "Verwijderen",
-        style: "destructive",
-        onPress: () =>
-          doAction(async () => {
-            await api(`/api/klassen/${klasId}/leerlingen`, {
-              method: "DELETE",
-              body: JSON.stringify({ leerlingId: l.id }),
-            });
-          }, true),
-      },
-    ]);
+    bevestig("Leerling verwijderen", `${l.name} uit deze klas halen?`, () =>
+      doAction(async () => {
+        await api(`/api/klassen/${klasId}/leerlingen`, {
+          method: "DELETE",
+          body: JSON.stringify({ leerlingId: l.id }),
+        });
+      }, true)
+    );
   }
 
   async function handleAddLeerlingen(klasId: string) {
@@ -220,22 +208,24 @@ export default function AdminKlassen() {
         klassen.map((k) => {
           const expanded = openId === k.id;
           return (
-            <Card
-              key={k.id}
-              onPress={() => {
-                setOpenId(expanded ? null : k.id);
-                setEditNaam(false);
-                setAddLeerlingen(false);
-                setChecked(new Set());
-                setKoppelDocentId(null);
-                setKoppelVakId(null);
-              }}
-            >
-              <Text style={styles.title}>{k.naam}</Text>
-              <Muted>
-                {plural(k._count.leerlingen, "leerling", "leerlingen")} · {plural(k._count.docenten, "docent", "docenten")} · {plural(k._count.vakken, "vak", "vakken")}
-              </Muted>
-              {k.beschrijving ? <Muted style={{ marginTop: 2 }}>{k.beschrijving}</Muted> : null}
+            <Card key={k.id}>
+              {/* Alleen de kop toggle't — anders klapt de kaart op web dicht bij klikken in het beheer-formulier */}
+              <Pressable
+                onPress={() => {
+                  setOpenId(expanded ? null : k.id);
+                  setEditNaam(false);
+                  setAddLeerlingen(false);
+                  setChecked(new Set());
+                  setKoppelDocentId(null);
+                  setKoppelVakId(null);
+                }}
+              >
+                <Text style={styles.title}>{k.naam}</Text>
+                <Muted>
+                  {plural(k._count.leerlingen, "leerling", "leerlingen")} · {plural(k._count.docenten, "docent", "docenten")} · {plural(k._count.vakken, "vak", "vakken")}
+                </Muted>
+                {k.beschrijving ? <Muted style={{ marginTop: 2 }}>{k.beschrijving}</Muted> : null}
+              </Pressable>
 
               {expanded && (
                 <View style={styles.detail}>

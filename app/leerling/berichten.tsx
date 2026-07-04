@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
@@ -184,8 +184,9 @@ export default function LeerlingBerichten() {
         inbox.map((b) => {
           const expanded = openId === b.id;
           return (
-            <Card key={b.id} onPress={() => openBericht(b)}>
-              <View style={styles.row}>
+            <Card key={b.id}>
+              {/* Alleen de kop-rij toggle't — anders klapt de kaart op web dicht bij klikken in het reactieveld */}
+              <Pressable onPress={() => openBericht(b)} style={styles.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.title, !b.gelezen && styles.unread]}>{b.onderwerp}</Text>
                   <Muted>
@@ -194,7 +195,7 @@ export default function LeerlingBerichten() {
                 </View>
                 {!b.gelezen && <Badge text="nieuw" bg={colors.infoLight} fg={colors.info} />}
                 {b.replies.length > 0 && <Badge text={`${b.replies.length} ↩`} bg={colors.primaryLight} fg={colors.primaryDark} />}
-              </View>
+              </Pressable>
 
               {expanded && (
                 <View style={styles.detail}>

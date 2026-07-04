@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
+import { bevestig } from "../lib/confirm";
 import { useFetch } from "../lib/useFetch";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -60,19 +61,12 @@ export function LeerlingDossierView({ leerlingId, leerlingNaam }: { leerlingId: 
   }
 
   function verwijder(n: Notitie) {
-    Alert.alert("Notitie verwijderen", "Deze notitie verwijderen?", [
-      { text: "Annuleren", style: "cancel" },
-      {
-        text: "Verwijderen",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await api(`/api/leerling-dossier?id=${n.id}`, { method: "DELETE" });
-            await reload();
-          } catch { /* noop */ }
-        },
-      },
-    ]);
+    bevestig("Notitie verwijderen", "Deze notitie verwijderen?", async () => {
+      try {
+        await api(`/api/leerling-dossier?id=${n.id}`, { method: "DELETE" });
+        await reload();
+      } catch { /* noop */ }
+    });
   }
 
   return (

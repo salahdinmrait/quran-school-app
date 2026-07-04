@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input } from "../../components/ui";
@@ -127,8 +127,9 @@ export default function LeerlingHuiswerk() {
     // "Afgerond" als de docent heeft afgevinkt met "✓"; anders is het een eigen inlevering ter beoordeling
     const eigenInlevering = inl && inl.inhoud !== "✓";
     return (
-      <Card key={hw.id} onPress={() => toggle(hw.id)}>
-        <View style={styles.row}>
+      <Card key={hw.id}>
+        {/* Alleen de kop-rij toggle't — anders klapt de kaart op web dicht bij klikken in het inleverformulier */}
+        <Pressable onPress={() => toggle(hw.id)} style={styles.row}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{hw.titel}</Text>
             <Muted>{hw.vak.naam} · deadline {fmtDatum(hw.deadline)}</Muted>
@@ -140,7 +141,7 @@ export default function LeerlingHuiswerk() {
           ) : (
             <Badge text="Open" bg={colors.warningLight} fg={colors.warning} />
           )}
-        </View>
+        </Pressable>
 
         {expanded && (
           <View style={styles.detail}>

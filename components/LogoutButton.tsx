@@ -1,7 +1,8 @@
-import { Alert, Pressable } from "react-native";
+import { Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "../lib/auth";
+import { bevestig } from "../lib/confirm";
 import { colors } from "../lib/theme";
 
 export function LogoutButton() {
@@ -9,17 +10,10 @@ export function LogoutButton() {
   const router = useRouter();
 
   function confirm() {
-    Alert.alert("Uitloggen", "Weet je zeker dat je wilt uitloggen?", [
-      { text: "Annuleren", style: "cancel" },
-      {
-        text: "Uitloggen",
-        style: "destructive",
-        onPress: async () => {
-          await logout();
-          router.replace("/login");
-        },
-      },
-    ]);
+    bevestig("Uitloggen", "Weet je zeker dat je wilt uitloggen?", async () => {
+      await logout();
+      router.replace("/login");
+    }, "Uitloggen");
   }
 
   return (

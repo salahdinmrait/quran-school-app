@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, Alert, Linking } from "react-native";
+import { View, Text, StyleSheet, Linking } from "react-native";
+import { bevestig } from "../lib/confirm";
 import { useFetch } from "../lib/useFetch";
 import { api, ApiError } from "../lib/api";
 import { Screen, Loading, ErrorView, Card, Muted, Empty, Button, Input, ChipSelect } from "./ui";
@@ -82,19 +83,12 @@ export function StudieMateriaalView({ canManage }: { canManage: boolean }) {
   }
 
   function confirmDelete(m: Materiaal) {
-    Alert.alert("Verwijderen", `"${m.titel}" verwijderen?`, [
-      { text: "Annuleren", style: "cancel" },
-      {
-        text: "Verwijderen",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await api(`/api/studiemateriaal?id=${m.id}`, { method: "DELETE" });
-            await reload();
-          } catch { /* noop */ }
-        },
-      },
-    ]);
+    bevestig("Verwijderen", `"${m.titel}" verwijderen?`, async () => {
+      try {
+        await api(`/api/studiemateriaal?id=${m.id}`, { method: "DELETE" });
+        await reload();
+      } catch { /* noop */ }
+    });
   }
 
   return (

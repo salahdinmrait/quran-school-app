@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
+import { bevestig } from "../../lib/confirm";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
@@ -50,22 +51,15 @@ export default function DocentCijfers() {
   }
 
   function confirmDelete(c: Cijfer) {
-    Alert.alert("Cijfer verwijderen", `Cijfer ${c.waarde.toFixed(1)} van ${c.leerling.name} verwijderen?`, [
-      { text: "Annuleren", style: "cancel" },
-      {
-        text: "Verwijderen",
-        style: "destructive",
-        onPress: async () => {
-          setError(null);
-          try {
-            await api(`/api/docent/cijfers/${c.id}`, { method: "DELETE" });
-            await cf.reload();
-          } catch (e) {
-            setError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
-          }
-        },
-      },
-    ]);
+    bevestig("Cijfer verwijderen", `Cijfer ${c.waarde.toFixed(1)} van ${c.leerling.name} verwijderen?`, async () => {
+      setError(null);
+      try {
+        await api(`/api/docent/cijfers/${c.id}`, { method: "DELETE" });
+        await cf.reload();
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+      }
+    });
   }
 
   async function handleSubmit() {

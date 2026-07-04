@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useFetch } from "../lib/useFetch";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -266,8 +266,10 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
           inbox.map((b) => {
             const expanded = openId === b.id;
             return (
-              <Card key={b.id} onPress={() => openBericht(b)}>
-                <View style={styles.row}>
+              <Card key={b.id}>
+                {/* Alleen de kop-rij toggle't; zo klapt de kaart op web niet dicht
+                    als je in het reactieveld klikt (kliks bubbelen daar omhoog). */}
+                <Pressable onPress={() => openBericht(b)} style={styles.row}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.title, !b.gelezen && styles.unread]}>{b.onderwerp}</Text>
                     <Muted>
@@ -277,7 +279,7 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
                   </View>
                   {!b.gelezen && <Badge text="nieuw" bg={colors.infoLight} fg={colors.info} />}
                   {b.replyTo && <Badge text="antwoord" bg={colors.infoLight} fg={colors.info} />}
-                </View>
+                </Pressable>
                 {expanded && (
                   <View style={styles.detail}>
                     {b.replyTo && (
@@ -315,8 +317,8 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
           verzonden.map((b) => {
             const expanded = openId === b.id;
             return (
-              <Card key={b.id} onPress={() => setOpenId(expanded ? null : b.id)}>
-                <View style={styles.row}>
+              <Card key={b.id}>
+                <Pressable onPress={() => setOpenId(expanded ? null : b.id)} style={styles.row}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.title}>{b.onderwerp}</Text>
                     <Muted>
@@ -327,7 +329,7 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
                   {b.replies.length > 0 && (
                     <Badge text={`${b.replies.length} ↩`} bg={colors.primaryLight} fg={colors.primaryDark} />
                   )}
-                </View>
+                </Pressable>
                 {expanded && (
                   <View style={styles.detail}>
                     <LinkText style={styles.inhoud}>{b.inhoud}</LinkText>

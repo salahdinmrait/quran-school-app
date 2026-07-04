@@ -26,6 +26,7 @@ export default function AdminLayout() {
         <Tabs.Screen name="berichten" options={{ title: "Berichten", tabBarIcon: ({ color, size }) => <Ionicons name="mail-outline" size={size} color={color} /> }} />
         <Tabs.Screen name="statistieken" options={{ title: "Stats", tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart-outline" size={size} color={color} /> }} />
         <Tabs.Screen name="leerling-dossier" options={{ href: null, title: "Leerlingendossier" }} />
+        <Tabs.Screen name="archief" options={{ href: null, title: "Archief" }} />
       </Tabs>
     </RoleGuard>
   );

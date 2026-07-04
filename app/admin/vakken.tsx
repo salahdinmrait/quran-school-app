@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
+import { bevestig } from "../../lib/confirm";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
@@ -93,26 +94,19 @@ export default function AdminVakken() {
   }
 
   function confirmDelete(v: Vak) {
-    Alert.alert("Vak verwijderen", `"${v.naam}" verwijderen?`, [
-      { text: "Annuleren", style: "cancel" },
-      {
-        text: "Verwijderen",
-        style: "destructive",
-        onPress: async () => {
-          setBusy(true);
-          setEditError(null);
-          try {
-            await api(`/api/vakken/${v.id}`, { method: "DELETE" });
-            setEditId(null);
-            await reload();
-          } catch (e) {
-            setEditError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
-          } finally {
-            setBusy(false);
-          }
-        },
-      },
-    ]);
+    bevestig("Vak verwijderen", `"${v.naam}" naar het archief verplaatsen?`, async () => {
+      setBusy(true);
+      setEditError(null);
+      try {
+        await api(`/api/vakken/${v.id}`, { method: "DELETE" });
+        setEditId(null);
+        await reload();
+      } catch (e) {
+        setEditError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+      } finally {
+        setBusy(false);
+      }
+    });
   }
 
   return (
@@ -144,8 +138,9 @@ export default function AdminVakken() {
         vakken.map((v) => {
           const expanded = editId === v.id;
           return (
-            <Card key={v.id} onPress={() => openEdit(v)}>
-              <View style={styles.row}>
+            <Card key={v.id}>
+              {/* Alleen de kop-rij toggle't — anders klapt de kaart op web dicht bij klikken in het formulier */}
+              <Pressable onPress={() => openEdit(v)} style={styles.row}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.title}>{v.naam}</Text>
                   <Muted>
@@ -154,7 +149,7 @@ export default function AdminVakken() {
                   </Muted>
                 </View>
                 <Badge text={CATEGORIE_LABELS[v.categorie] ?? v.categorie} />
-              </View>
+              </Pressable>
 
               {expanded && (
                 <View style={styles.detail}>
