@@ -193,7 +193,7 @@ export function Input({
   placeholder?: string;
   secureTextEntry?: boolean;
   multiline?: boolean;
-  keyboardType?: "default" | "email-address" | "numeric";
+  keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
   autoCapitalize?: "none" | "sentences" | "words";
 }) {
   return (

@@ -13,6 +13,7 @@ interface Gebruiker {
   name: string;
   email: string;
   role: string;
+  telefoon?: string | null;
   actief: boolean;
   isVolwassen?: boolean;
 }
@@ -37,6 +38,7 @@ export default function AdminGebruikers() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [telefoon, setTelefoon] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<RoleOption>("LEERLING");
   const [isVolwassen, setIsVolwassen] = useState(false);
@@ -48,6 +50,7 @@ export default function AdminGebruikers() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  const [editTelefoon, setEditTelefoon] = useState("");
   const [editRole, setEditRole] = useState<RoleOption>("LEERLING");
   const [editActief, setEditActief] = useState(true);
   const [editVolwassen, setEditVolwassen] = useState(false);
@@ -92,11 +95,12 @@ export default function AdminGebruikers() {
     try {
       await api("/api/gebruikers", {
         method: "POST",
-        body: JSON.stringify({ name, email, password, role, isVolwassen: role === "LEERLING" ? isVolwassen : false }),
+        body: JSON.stringify({ name, email, telefoon: telefoon || null, password, role, isVolwassen: role === "LEERLING" ? isVolwassen : false }),
       });
       setCreated(`Account voor ${name} aangemaakt ✓`);
       setName("");
       setEmail("");
+      setTelefoon("");
       setPassword("");
       setIsVolwassen(false);
       await reload();
@@ -116,6 +120,7 @@ export default function AdminGebruikers() {
     if (!isOpen) {
       setEditName(g.name);
       setEditEmail(g.email);
+      setEditTelefoon(g.telefoon ?? "");
       setEditRole(g.role as RoleOption);
       setEditActief(g.actief);
       setEditVolwassen(!!g.isVolwassen);
@@ -132,6 +137,7 @@ export default function AdminGebruikers() {
         body: JSON.stringify({
           name: editName,
           email: editEmail,
+          telefoon: editTelefoon || null,
           role: editRole,
           actief: editActief,
           isVolwassen: editRole === "LEERLING" ? editVolwassen : false,
@@ -227,6 +233,7 @@ export default function AdminGebruikers() {
           />
           <Input label="Naam" value={name} onChangeText={setName} />
           <Input label="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+          <Input label="Telefoonnummer (optioneel)" value={telefoon} onChangeText={setTelefoon} keyboardType="phone-pad" />
           <Input label="Wachtwoord (min. 8 tekens)" value={password} onChangeText={setPassword} autoCapitalize="none" />
           {role === "LEERLING" && (
             <CheckRow
@@ -283,6 +290,7 @@ export default function AdminGebruikers() {
                 <View style={styles.detail}>
                   <Input label="Naam" value={editName} onChangeText={setEditName} />
                   <Input label="E-mail" value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
+                  <Input label="Telefoonnummer (optioneel)" value={editTelefoon} onChangeText={setEditTelefoon} keyboardType="phone-pad" />
                   <ChipSelect<RoleOption>
                     label="Rol"
                     options={[

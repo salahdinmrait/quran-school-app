@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -69,6 +70,10 @@ export default function LoginScreen() {
           loading={loading}
           disabled={!email || !password}
         />
+
+        <Pressable onPress={() => router.push("/wachtwoord-vergeten")}>
+          <Text style={styles.vergetenLink}>Wachtwoord vergeten?</Text>
+        </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
@@ -85,4 +90,11 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   error: { color: colors.danger, marginBottom: 8, textAlign: "center" },
+  vergetenLink: {
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: 18,
+    fontSize: 14,
+    textDecorationLine: "underline",
+  },
 });
