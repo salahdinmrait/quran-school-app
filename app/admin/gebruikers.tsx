@@ -61,7 +61,8 @@ export default function AdminGebruikers() {
 
   // Ouder-kind koppeling
   const [kinderen, setKinderen] = useState<Kind[]>([]);
-  const [koppelLeerlingId, setKoppelLeerlingId] = useState<string | null>(null);
+  const [koppelZoek, setKoppelZoek] = useState("");
+  const [koppelIds, setKoppelIds] = useState<string[]>([]);
 
   const editUser = (data ?? []).find((g) => g.id === editId) ?? null;
 
@@ -73,7 +74,8 @@ export default function AdminGebruikers() {
     } else {
       setKinderen([]);
     }
-    setKoppelLeerlingId(null);
+    setKoppelZoek("");
+    setKoppelIds([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId, editUser?.role]);
 
@@ -85,7 +87,24 @@ export default function AdminGebruikers() {
     .filter((g) => filter === "ALLE" || g.role === filter)
     .filter((g) => !q || g.name.toLowerCase().includes(q) || g.email.toLowerCase().includes(q));
   const leerlingen = (data ?? []).filter((g) => g.role === "LEERLING");
-  const koppelbaar = leerlingen.filter((l) => !kinderen.some((k) => k.id === l.id));
+
+  // Koppelbaar = nog niet gekoppeld en nog niet in de selectie. Met 100+
+  // leerlingen tonen we ze niet allemaal: pas na het typen van een zoekterm
+  // verschijnt er een korte trefferlijst.
+  const koppelbaar = leerlingen.filter(
+    (l) => !kinderen.some((k) => k.id === l.id) && !koppelIds.includes(l.id)
+  );
+  const koppelQ = koppelZoek.trim().toLowerCase();
+  const koppelAlleTreffers = koppelQ
+    ? koppelbaar.filter(
+        (l) => l.name.toLowerCase().includes(koppelQ) || l.email.toLowerCase().includes(koppelQ)
+      )
+    : [];
+  const koppelTreffers = koppelAlleTreffers.slice(0, 8);
+  const koppelRest = koppelAlleTreffers.length - koppelTreffers.length;
+  const koppelSelectie = koppelIds
+    .map((id) => leerlingen.find((l) => l.id === id))
+    .filter((l): l is Gebruiker => !!l);
 
   async function handleCreate() {
     if (!name || !email || password.length < 8) return;
@@ -170,22 +189,35 @@ export default function AdminGebruikers() {
   }
 
   async function koppelKind(ouderId: string) {
-    if (!koppelLeerlingId) return;
+    if (koppelIds.length === 0) return;
     setBusy(true);
     setEditError(null);
-    try {
-      await api("/api/ouder/koppeling", {
-        method: "POST",
-        body: JSON.stringify({ ouderId, leerlingId: koppelLeerlingId }),
-      });
-      const kind = leerlingen.find((l) => l.id === koppelLeerlingId);
-      if (kind) setKinderen((prev) => [...prev, { id: kind.id, name: kind.name, email: kind.email }]);
-      setKoppelLeerlingId(null);
-    } catch (e) {
-      setEditError(e instanceof ApiError ? e.message : "Koppelen mislukt");
-    } finally {
-      setBusy(false);
+    setEditOk(null);
+
+    // Per kind apart: één kind kan al aan een andere ouder hangen (409) en dat
+    // mag de rest van de selectie niet blokkeren.
+    const gelukt: Kind[] = [];
+    const mislukt: string[] = [];
+    for (const kind of koppelSelectie) {
+      try {
+        await api("/api/ouder/koppeling", {
+          method: "POST",
+          body: JSON.stringify({ ouderId, leerlingId: kind.id }),
+        });
+        gelukt.push({ id: kind.id, name: kind.name, email: kind.email });
+      } catch (e) {
+        mislukt.push(`${kind.name}: ${e instanceof ApiError ? e.message : "koppelen mislukt"}`);
+      }
     }
+
+    if (gelukt.length > 0) {
+      setKinderen((prev) => [...prev, ...gelukt].sort((a, b) => a.name.localeCompare(b.name)));
+      setEditOk(gelukt.length === 1 ? "Kind gekoppeld ✓" : `${gelukt.length} kinderen gekoppeld ✓`);
+    }
+    setKoppelIds(mislukt.length > 0 ? koppelIds.filter((id) => !gelukt.some((g) => g.id === id)) : []);
+    setKoppelZoek("");
+    if (mislukt.length > 0) setEditError(mislukt.join("\n"));
+    setBusy(false);
   }
 
   async function ontkoppelKind(ouderId: string, leerlingId: string) {
@@ -341,23 +373,71 @@ export default function AdminGebruikers() {
                           </View>
                         ))
                       )}
-                      {koppelbaar.length > 0 && (
-                        <View>
-                          <ChipSelect
-                            label="Kind koppelen"
-                            options={koppelbaar.map((l) => ({ value: l.id, label: l.name }))}
-                            value={koppelLeerlingId}
-                            onChange={setKoppelLeerlingId}
-                          />
-                          <Button
-                            small
-                            title="Koppelen"
-                            onPress={() => koppelKind(g.id)}
-                            loading={busy}
-                            disabled={!koppelLeerlingId}
-                          />
-                        </View>
-                      )}
+                      <View>
+                        <Input
+                          label="Kind koppelen"
+                          value={koppelZoek}
+                          onChangeText={setKoppelZoek}
+                          placeholder="Zoek op naam of e-mail…"
+                          autoCapitalize="none"
+                        />
+
+                        {koppelZoek.trim().length > 0 && (
+                          koppelTreffers.length === 0 ? (
+                            <Muted>Geen leerling gevonden.</Muted>
+                          ) : (
+                            <View style={styles.zoekLijst}>
+                              {koppelTreffers.map((l) => (
+                                <Pressable
+                                  key={l.id}
+                                  onPress={() => {
+                                    setKoppelIds((prev) => [...prev, l.id]);
+                                    setKoppelZoek("");
+                                  }}
+                                  style={({ pressed }) => [
+                                    styles.zoekRij,
+                                    pressed && styles.zoekRijActief,
+                                  ]}
+                                >
+                                  <Text style={styles.kindNaam}>{l.name}</Text>
+                                  <Text style={styles.zoekEmail}>{l.email}</Text>
+                                </Pressable>
+                              ))}
+                              {koppelRest > 0 && (
+                                <Text style={styles.zoekMeer}>
+                                  Nog {koppelRest} andere{koppelRest === 1 ? "" : "n"} — typ verder om te verfijnen.
+                                </Text>
+                              )}
+                            </View>
+                          )
+                        )}
+
+                        {koppelSelectie.length > 0 && (
+                          <View style={styles.selectieRij}>
+                            {koppelSelectie.map((l) => (
+                              <Pressable
+                                key={l.id}
+                                onPress={() => setKoppelIds((prev) => prev.filter((id) => id !== l.id))}
+                                style={styles.selectieChip}
+                              >
+                                <Text style={styles.selectieChipText}>{l.name} ✕</Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                        )}
+
+                        <Button
+                          small
+                          title={
+                            koppelSelectie.length > 1
+                              ? `${koppelSelectie.length} kinderen koppelen`
+                              : "Koppelen"
+                          }
+                          onPress={() => koppelKind(g.id)}
+                          loading={busy}
+                          disabled={koppelSelectie.length === 0}
+                        />
+                      </View>
                     </View>
                   )}
 
@@ -408,6 +488,26 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   kindNaam: { fontSize: 14, color: colors.text },
+  zoekLijst: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    backgroundColor: colors.card,
+    marginBottom: 8,
+    overflow: "hidden",
+  },
+  zoekRij: { paddingVertical: 8, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+  zoekRijActief: { backgroundColor: colors.primaryLight },
+  zoekEmail: { fontSize: 12, color: colors.textMuted },
+  zoekMeer: { fontSize: 12, color: colors.textFaint, padding: 8 },
+  selectieRij: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 },
+  selectieChip: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  selectieChipText: { fontSize: 13, color: colors.primaryDark, fontWeight: "500" },
   btnRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 4 },
   error: { color: colors.danger, marginBottom: 8 },
   success: { color: colors.primaryDark, marginBottom: 8 },
