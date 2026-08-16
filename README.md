@@ -7,9 +7,9 @@ Alle rollen loggen in met hetzelfde schoolaccount:
 | Rol | Functionaliteit in de app |
 |---|---|
 | **Leerling** | Dashboard, huiswerk (incl. bijlagen en docent-opmerkingen), cijfers, rooster, aanwezigheid, berichten (alleen reageren, niet initiëren), klassement |
-| **Docent** | Klassen, huiswerk opgeven (met bijlage tot 4 MB) en per leerling aftekenen + opmerking, cijfers invoeren, absentie registreren, rooster/lessen plannen, berichten (klas/ouders/individueel) |
+| **Docent** | Klassen, huiswerk opgeven (met bijlage tot 4 MB) en per leerling aftekenen + opmerking, cijfers invoeren, absentie registreren, rooster/lessen plannen én per les alles regelen (zie "Het rooster als werkplek"), berichten (klas/ouders/individueel) |
 | **Ouder** | Voortgang per kind (cijfers, aanwezigheid), huiswerk meevolgen, rooster, berichten naar docent van het kind |
-| **Admin** | Accounts aanmaken binnen de eigen school (incl. telefoonnummer), klassen + koppelingen (leerling/docent/vak), vakken, rooster, berichten |
+| **Admin** | Accounts aanmaken binnen de eigen school (incl. telefoonnummer), klassen + koppelingen (leerling/docent/vak), vakken, rooster (lesgegevens wijzigen/verwijderen), berichten |
 
 De rechten zijn identiek op elk platform — de app praat tegen dezelfde API,
 de server controleert de rol bij elk verzoek.
@@ -67,9 +67,35 @@ Bundle-identifiers staan al ingesteld: `com.quranmagister.app`.
    niemand van die school meer inloggen
 6. Vergeten? `app/wachtwoord-vergeten.tsx` (link onder de inlogknop op
    `app/login.tsx`) stuurt het e-mailadres naar
-   `POST /api/auth/forgot-password`; de gebruiker krijgt een reset-link per
-   mail (werkt op elk apparaat, ook niet dit toestel — de link opent de
-   backend-resetpagina in de browser)
+   `POST /api/auth/forgot-password`; de gebruiker krijgt een link per mail
+7. Die link opent **`app/wachtwoord-instellen.tsx`** in de webapp
+   (`/wachtwoord-instellen?token=…`) — dus in de huisstijl van de app, niet in
+   de LMS. Hetzelfde scherm wordt gebruikt voor de welkomstmail na een
+   Excel-import. Na opslaan gaat de gebruiker door naar `app/login.tsx`.
+   Werkt op elk apparaat, ook een ander toestel dan waar de app op staat.
+
+## Het rooster als werkplek (`components/LesDetail.tsx`)
+
+In het rooster van de docent (`app/docent/rooster.tsx`) en de admin
+(`app/admin/rooster.tsx`) staat bij een les met huiswerk een badge **HW**
+(of `HW 3` bij meerdere) — dat aantal komt mee uit de API als `huiswerkAantal`.
+
+Tikken op een les opent níet meteen een verwijderbevestiging, maar het
+lesdetail. Eén gedeelde component, met een `rol`-prop, want huiswerk en
+aanwezigheid lopen via docent-only API's:
+
+- **Huiswerk bij deze les** (docent) — lijst met titel, vak, deadline en
+  aantal inleveringen, plus de knop "+ Huiswerk voor deze les". Die opent
+  `app/docent/huiswerk-nieuw.tsx` met les, klas en vak al ingevuld
+  (via route-params); bij terugkomst wordt de lijst opnieuw opgehaald.
+- **Aanwezigheid** (docent) — per leerling de vier statussen
+  (aanwezig / te laat / geoorloofd / afwezig), direct aantikbaar. De
+  registratie gaat optimistisch weg en draait terug bij een fout.
+- **Lesgegevens** (docent + admin) — datum, begin- en eindtijd, lokaal,
+  omschrijving en de bijlage (toevoegen, openen, weghalen).
+- **Les verwijderen** — apart, onderin, in een rode gevarenzone met
+  bevestiging. De aanwezigheid van die les gaat mee; huiswerk blijft bestaan
+  maar verliest de koppeling met de les.
 
 ## Webapp (react-native-web)
 

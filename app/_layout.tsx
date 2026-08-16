@@ -45,6 +45,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="wachtwoord-vergeten" options={{ headerShown: false }} />
+        <Stack.Screen name="wachtwoord-instellen" options={{ headerShown: false }} />
         <Stack.Screen name="leerling" options={{ headerShown: false }} />
         <Stack.Screen name="docent" options={{ headerShown: false }} />
         <Stack.Screen name="ouder" options={{ headerShown: false }} />

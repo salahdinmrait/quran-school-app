@@ -1,33 +1,21 @@
 import { useState } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
-import { bevestig } from "../../lib/confirm";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Loading, ErrorView, Card, Muted, Button, Input, ChipSelect } from "../../components/ui";
 import { Agenda, AgendaEvent } from "../../components/Agenda";
 import { DateField, TimeField } from "../../components/DateField";
+import { LesDetail, type Les } from "../../components/LesDetail";
 import { LinkText } from "../../components/LinkText";
 import { pickBijlage, openAttachment, GekozenBijlage } from "../../lib/bijlage";
 import { colors } from "../../lib/theme";
-import { fmtDatumKort } from "../../lib/format";
 import type { DocentKlas } from "./klassen";
-
-interface Les {
-  id: string;
-  datum: string;
-  begintijd: string;
-  eindtijd: string;
-  lokaal: string | null;
-  beschrijving: string | null;
-  hasBijlage: boolean;
-  klas: { id: string; naam: string };
-  vak: { id: string; naam: string } | null;
-}
 
 export default function DocentRooster() {
   const ls = useFetch<Les[]>("/api/docent/lessen");
   const kl = useFetch<DocentKlas[]>("/api/docent/klassen");
 
+  const [gekozenLesId, setGekozenLesId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [klasId, setKlasId] = useState<string | null>(null);
   const [vakId, setVakId] = useState<string | null>(null);
@@ -47,6 +35,9 @@ export default function DocentRooster() {
   const lessen = ls.data ?? [];
   const klassen = kl.data ?? [];
   const klas = klassen.find((k) => k.id === klasId) ?? null;
+  // Uit de lijst halen (niet apart bewaren) zodat het detail meteen de nieuwe
+  // gegevens toont nadat de lessen opnieuw zijn opgehaald.
+  const gekozenLes = lessen.find((l) => l.id === gekozenLesId) ?? null;
 
   async function kies() {
     setError(null);
@@ -80,15 +71,6 @@ export default function DocentRooster() {
     }
   }
 
-  function confirmDeleteLes(l: Les) {
-    bevestig("Les verwijderen", `${l.klas.naam} op ${fmtDatumKort(l.datum)} verwijderen?`, async () => {
-      try {
-        await api(`/api/lessen/${l.id}`, { method: "DELETE" });
-        await ls.reload();
-      } catch { /* noop */ }
-    });
-  }
-
   const events: AgendaEvent[] = lessen.map((l) => ({
     id: l.id,
     datum: l.datum,
@@ -96,7 +78,10 @@ export default function DocentRooster() {
     eindtijd: l.eindtijd,
     titel: l.klas.naam + (l.vak ? ` · ${l.vak.naam}` : ""),
     subtitel: l.lokaal || undefined,
-    onPress: () => confirmDeleteLes(l),
+    badges: l.huiswerkAantal > 0
+      ? [{ text: l.huiswerkAantal > 1 ? `HW ${l.huiswerkAantal}` : "HW" }]
+      : undefined,
+    onPress: () => setGekozenLesId(l.id),
     extra: (
       <View>
         {l.beschrijving ? <LinkText style={styles.beschrijving}>{l.beschrijving}</LinkText> : null}
@@ -107,6 +92,19 @@ export default function DocentRooster() {
     ),
   }));
 
+  if (gekozenLes) {
+    return (
+      <View style={styles.container}>
+        <LesDetail
+          les={gekozenLes}
+          rol="DOCENT"
+          onSluiten={() => setGekozenLesId(null)}
+          onGewijzigd={ls.reload}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -116,7 +114,7 @@ export default function DocentRooster() {
           small
           onPress={() => setShowForm(!showForm)}
         />
-        <Muted>Tik op een les om te verwijderen</Muted>
+        <Muted>Tik op een les voor details</Muted>
       </View>
 
       {showForm ? (

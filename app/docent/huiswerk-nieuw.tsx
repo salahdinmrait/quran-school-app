@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Text, StyleSheet, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Button, Input, ChipSelect, CheckRow, Muted, Card } from "../../components/ui";
 import { DateField } from "../../components/DateField";
 import { pickBijlage, GekozenBijlage } from "../../lib/bijlage";
 import { colors } from "../../lib/theme";
+import { fmtDatum } from "../../lib/format";
 import type { DocentKlas } from "./klassen";
 
 interface Les {
@@ -18,15 +19,18 @@ interface Les {
 
 export default function DocentHuiswerkNieuw() {
   const router = useRouter();
+  // Vanuit het rooster wordt hier direct een les meegegeven, zodat de docent
+  // huiswerk aan die les kan hangen zonder alles opnieuw te kiezen.
+  const vooraf = useLocalSearchParams<{ lesId?: string; klasId?: string; vakId?: string }>();
   const kl = useFetch<DocentKlas[]>("/api/docent/klassen");
   const ls = useFetch<Les[]>("/api/docent/lessen");
 
   const [titel, setTitel] = useState("");
   const [beschrijving, setBeschrijving] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [klasId, setKlasId] = useState<string | null>(null);
-  const [vakId, setVakId] = useState<string | null>(null);
-  const [lesId, setLesId] = useState<string | null>(null);
+  const [klasId, setKlasId] = useState<string | null>(vooraf.klasId ?? null);
+  const [vakId, setVakId] = useState<string | null>(vooraf.vakId ?? null);
+  const [lesId, setLesId] = useState<string | null>(vooraf.lesId ?? null);
   const [perLeerling, setPerLeerling] = useState(false);
   const [leerlingIds, setLeerlingIds] = useState<Set<string>>(new Set());
   const [bijlage, setBijlage] = useState<GekozenBijlage | null>(null);
@@ -41,7 +45,15 @@ export default function DocentHuiswerkNieuw() {
   const vakken = klas
     ? klas.vakken
     : Array.from(new Map(klassen.flatMap((k) => k.vakken).map((v) => [v.id, v])).values());
-  const lessen = (ls.data ?? []).filter((l) => !klasId || l.klas.id === klasId).slice(0, 20);
+  const lessenVanKlas = (ls.data ?? []).filter((l) => !klasId || l.klas.id === klasId);
+  const recenteLessen = lessenVanKlas.slice(0, 20);
+  // Een les die vanuit het rooster is meegegeven kan buiten de recente 20 vallen;
+  // die moet wél kiesbaar blijven, anders lijkt de koppeling verdwenen.
+  const gekozenLes = lesId ? lessenVanKlas.find((l) => l.id === lesId) : undefined;
+  const lessen =
+    gekozenLes && !recenteLessen.some((l) => l.id === gekozenLes.id)
+      ? [gekozenLes, ...recenteLessen]
+      : recenteLessen;
 
   async function kies() {
     setError(null);
@@ -112,7 +124,7 @@ export default function DocentHuiswerkNieuw() {
       {lessen.length > 0 && (
         <ChipSelect
           label="Koppel aan les (optioneel)"
-          options={[{ value: "", label: "Geen" }, ...lessen.map((l) => ({ value: l.id, label: `${l.klas.naam} ${l.datum.slice(0, 10)}` }))]}
+          options={[{ value: "", label: "Geen" }, ...lessen.map((l) => ({ value: l.id, label: `${l.klas.naam} ${fmtDatum(l.datum)}` }))]}
           value={lesId ?? ""}
           onChange={(v) => setLesId(v || null)}
         />

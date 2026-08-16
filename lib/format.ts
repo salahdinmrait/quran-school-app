@@ -17,12 +17,13 @@ export function fmtDatum(iso: string | Date | null | undefined): string {
   return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
 }
 
-// Korte weergave met weekdag: "wo 23-04"
+// Weergave met weekdag: "wo 23-04-2026". Ook hier het jaartal erbij, zodat
+// nergens in de app een datum staat waarvan het jaar geraden moet worden.
 export function fmtDatumKort(iso: string | Date | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
-  return `${DAGEN[d.getDay()]} ${pad(d.getDate())}-${pad(d.getMonth() + 1)}`;
+  return `${DAGEN[d.getDay()]} ${fmtDatum(d)}`;
 }
 
 // Leesbaar met maandnaam: "23 apr 2026" (gebruikt waar context past)
