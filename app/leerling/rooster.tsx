@@ -1,8 +1,12 @@
+import { useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useFetch } from "../../lib/useFetch";
 import { useAuth } from "../../lib/auth";
+import { useT } from "../../lib/LanguageContext";
+import { row, textStart } from "../../lib/rtl";
 import { Loading, ErrorView, Muted } from "../../components/ui";
-import { Agenda, AgendaEvent } from "../../components/Agenda";
+import { Agenda, AgendaEvent, huiswerkBadge } from "../../components/Agenda";
+import { LesDetail, type Les as LesDetailLes, type LesHuiswerk } from "../../components/LesDetail";
 import { LinkText } from "../../components/LinkText";
 import { openAttachment } from "../../lib/bijlage";
 import { colors } from "../../lib/theme";
@@ -14,6 +18,7 @@ interface Les {
   eindtijd: string;
   lokaal: string | null;
   beschrijving: string | null;
+  bijlageNaam: string | null;
   hasBijlage: boolean;
   klas: { id: string; naam: string };
   vak: { id: string; naam: string } | null;
@@ -21,20 +26,24 @@ interface Les {
   huiswerk: {
     id: string;
     titel: string;
-    deadline: string | null;
-    vak: { naam: string };
+    beschrijving: string | null;
+    hasBijlage: boolean;
+    vak: { id: string; naam: string };
     inleveringen: { id: string }[];
   }[];
 }
 
 export default function LeerlingRooster() {
   const { user } = useAuth();
+  const { t, isRTL } = useT();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Les[]>("/api/leerling/lessen");
+  const [gekozenLesId, setGekozenLesId] = useState<string | null>(null);
 
   if (loading) return <Loading />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
 
   const lessen = data ?? [];
+  const gekozenLes = lessen.find((l) => l.id === gekozenLesId) ?? null;
 
   const events: AgendaEvent[] = lessen.map((l) => ({
     id: l.id,
@@ -43,19 +52,23 @@ export default function LeerlingRooster() {
     eindtijd: l.eindtijd,
     titel: l.klas.naam + (l.vak ? ` · ${l.vak.naam}` : ""),
     subtitel: [l.docenten.map((d) => d.name).join(", "), l.lokaal].filter(Boolean).join(" · ") || undefined,
-    badges: l.huiswerk.length > 0
-      ? [{ text: `${l.huiswerk.length} huiswerk`, bg: colors.warningLight, fg: colors.warning }]
-      : undefined,
+    // Hetzelfde HW-label als de docent ziet.
+    badges: huiswerkBadge(l.huiswerk.length, t("c_hw_label")),
+    onPress: () => setGekozenLesId(l.id),
     extra: (
       <View>
-        {l.beschrijving ? <LinkText style={styles.beschrijving}>{l.beschrijving}</LinkText> : null}
+        {l.beschrijving ? (
+          <LinkText style={[styles.beschrijving, { textAlign: textStart(isRTL) }]}>{l.beschrijving}</LinkText>
+        ) : null}
         {l.hasBijlage ? (
-          <Text style={styles.bijlage} onPress={() => openAttachment("les", l.id)}>📎 Lesbijlage openen</Text>
+          <Text style={[styles.bijlage, { textAlign: textStart(isRTL) }]} onPress={() => openAttachment("les", l.id)}>
+            📎 {t("lr_lesbijlage_openen")}
+          </Text>
         ) : null}
         {l.huiswerk.map((hw) => (
-          <View key={hw.id} style={styles.hwRow}>
+          <View key={hw.id} style={[styles.hwRow, { flexDirection: row(isRTL) }]}>
             <Text style={styles.hwDot}>•</Text>
-            <Text style={styles.hwText}>
+            <Text style={[styles.hwText, { textAlign: textStart(isRTL) }]}>
               {hw.titel}
               {hw.inleveringen.length > 0 ? "  ✓" : ""}
             </Text>
@@ -65,12 +78,34 @@ export default function LeerlingRooster() {
     ),
   }));
 
+  // Hetzelfde lesdetail als de docent gebruikt, maar alleen-lezen. Het huiswerk
+  // gaat mee uit deze lijst; de docent-API is voor een leerling afgesloten.
+  if (gekozenLes) {
+    const les: LesDetailLes = {
+      ...gekozenLes,
+      huiswerkAantal: gekozenLes.huiswerk.length,
+    };
+    const huiswerk: LesHuiswerk[] = gekozenLes.huiswerk;
+    return (
+      <View style={styles.container}>
+        <LesDetail
+          les={les}
+          rol="LEERLING"
+          huiswerkVooraf={huiswerk}
+          onSluiten={() => setGekozenLesId(null)}
+          onGewijzigd={reload}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.greeting}>Assalamu alaykum,</Text>
-        <Text style={styles.name}>{user?.name}</Text>
+        <Text style={[styles.greeting, { textAlign: textStart(isRTL) }]}>{t("c_groet")}</Text>
+        <Text style={[styles.name, { textAlign: textStart(isRTL) }]}>{user?.name}</Text>
         {user?.schoolNaam ? <Muted>{user.schoolNaam}</Muted> : null}
+        <Muted>{t("lr_tik_les")}</Muted>
       </View>
       <View style={styles.agendaWrap}>
         <Agenda events={events} />
@@ -87,7 +122,7 @@ const styles = StyleSheet.create({
   agendaWrap: { flex: 1, paddingHorizontal: 16 },
   beschrijving: { fontSize: 13, color: colors.text, marginTop: 6 },
   bijlage: { color: colors.info, fontSize: 13, textDecorationLine: "underline", marginTop: 6 },
-  hwRow: { flexDirection: "row", gap: 6, marginTop: 4 },
+  hwRow: { gap: 6, marginTop: 4 },
   hwDot: { color: colors.warning, fontSize: 13 },
   hwText: { flex: 1, fontSize: 13, color: colors.textMuted },
 });

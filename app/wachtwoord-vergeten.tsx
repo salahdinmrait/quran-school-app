@@ -11,10 +11,13 @@ import { useRouter } from "expo-router";
 import { api, ApiError } from "../lib/api";
 import { Button, Input } from "../components/ui";
 import { Logo } from "../components/Logo";
+import { LanguageButton } from "../components/LanguageButton";
 import { colors } from "../lib/theme";
+import { useT } from "../lib/LanguageContext";
 
 export default function WachtwoordVergetenScreen() {
   const router = useRouter();
+  const { t, isRTL } = useT();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,9 +33,7 @@ export default function WachtwoordVergetenScreen() {
       });
       setVerstuurd(true);
     } catch (e) {
-      setError(
-        e instanceof ApiError ? e.message : "Er ging iets mis — probeer het opnieuw"
-      );
+      setError(e instanceof ApiError ? e.message : t("c_fout_opnieuw"));
     } finally {
       setLoading(false);
     }
@@ -44,31 +45,28 @@ export default function WachtwoordVergetenScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.inner}>
+        <View style={[styles.taalRij, { alignItems: isRTL ? "flex-start" : "flex-end" }]}>
+          <LanguageButton />
+        </View>
         <View style={styles.logoWrap}>
           <Logo size={52} />
         </View>
-        <Text style={styles.titel}>Wachtwoord vergeten</Text>
+        <Text style={styles.titel}>{t("ww_vergeten_titel")}</Text>
 
         {verstuurd ? (
           <>
-            <Text style={styles.uitleg}>
-              Als dit e-mailadres bij ons bekend is, is er een e-mail verstuurd met een
-              link om een nieuw wachtwoord in te stellen. Controleer ook je spam-map.
-            </Text>
-            <Button title="Terug naar inloggen" onPress={() => router.replace("/login")} />
+            <Text style={styles.uitleg}>{t("ww_vergeten_verstuurd")}</Text>
+            <Button title={t("ww_terug_inloggen")} onPress={() => router.replace("/login")} />
           </>
         ) : (
           <>
-            <Text style={styles.uitleg}>
-              Vul het e-mailadres van je schoolaccount in. Je ontvangt dan een e-mail met
-              een link om een nieuw wachtwoord in te stellen.
-            </Text>
+            <Text style={styles.uitleg}>{t("ww_vergeten_uitleg")}</Text>
 
             <Input
-              label="E-mailadres"
+              label={t("c_emailadres")}
               value={email}
               onChangeText={setEmail}
-              placeholder="naam@school.nl"
+              placeholder={t("login_email_ph")}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -76,14 +74,14 @@ export default function WachtwoordVergetenScreen() {
             {error && <Text style={styles.error}>{error}</Text>}
 
             <Button
-              title="Verstuur e-mail"
+              title={t("ww_verstuur_email")}
               onPress={handleVerstuur}
               loading={loading}
               disabled={!email.trim()}
             />
 
             <Pressable onPress={() => router.back()}>
-              <Text style={styles.terugLink}>Terug naar inloggen</Text>
+              <Text style={styles.terugLink}>{t("ww_terug_inloggen")}</Text>
             </Pressable>
           </>
         )}
@@ -95,6 +93,7 @@ export default function WachtwoordVergetenScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, justifyContent: "center" },
   inner: { padding: 24 },
+  taalRij: { marginBottom: 4 },
   logoWrap: { alignSelf: "center", marginBottom: 10 },
   titel: {
     fontSize: 18,

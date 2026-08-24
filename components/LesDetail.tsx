@@ -5,11 +5,13 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api, ApiError } from "../lib/api";
 import { bevestig } from "../lib/confirm";
 import { pickBijlage, openAttachment, GekozenBijlage } from "../lib/bijlage";
-import { colors, fonts, radius, STATUS_COLORS, STATUS_LABELS } from "../lib/theme";
+import { colors, fonts, radius, STATUS_COLORS } from "../lib/theme";
 import { fmtDatum } from "../lib/format";
-import { Button, Card, Input, Muted } from "./ui";
+import { Button, Card, Input, KV, Muted } from "./ui";
 import { DateField, TimeField } from "./DateField";
 import { LinkText } from "./LinkText";
+import { useT } from "../lib/LanguageContext";
+import { row, textStart } from "../lib/rtl";
 
 const STATUSES = ["AANWEZIG", "TE_LAAT", "GEOORLOOFD", "AFWEZIG"] as const;
 
@@ -29,15 +31,17 @@ export interface Les {
     leerlingen?: { leerling: { id: string; name: string } }[];
   };
   vak: { id: string; naam: string } | null;
+  /** Alleen gevuld in de leerlingweergave; de docent ziet zijn eigen naam niet. */
+  docenten?: { id: string; name: string }[];
 }
 
-interface LesHuiswerk {
+export interface LesHuiswerk {
   id: string;
   titel: string;
   beschrijving: string | null;
-  deadline: string | null;
   hasBijlage: boolean;
   vak: { id: string; naam: string };
+  // Eén rij per leerling die de docent heeft afgevinkt.
   inleveringen: { id: string }[];
 }
 
@@ -46,23 +50,33 @@ interface AanwezigheidRecord {
   leerling: { id: string; name: string };
 }
 
-// Detailscherm van één les: huiswerk bekijken/toevoegen, aanwezigheid
-// registreren, lesgegevens wijzigen en — als laatste stap — de les verwijderen.
-// Huiswerk en aanwezigheid lopen via de docent-API's; een beheerder ziet
-// daarom alleen de lesgegevens.
+// Detailscherm van één les: huiswerk bekijken/toevoegen/verwijderen,
+// aanwezigheid registreren, lesgegevens wijzigen en — als laatste stap — de les
+// verwijderen. Huiswerk en aanwezigheid lopen via de docent-API's; een
+// beheerder ziet daarom alleen de lesgegevens.
+//
+// Een leerling opent hetzelfde scherm vanuit zijn rooster, maar dan
+// alleen-lezen: lesgegevens en het huiswerk van deze les, zonder
+// aanwezigheidsknoppen en zonder gevarenzone. Het huiswerk komt dan mee uit de
+// roosterlijst (`huiswerkVooraf`), want de docent-API is voor een leerling
+// terecht afgesloten.
 export function LesDetail({
   les,
   rol,
+  huiswerkVooraf,
   onSluiten,
   onGewijzigd,
 }: {
   les: Les;
-  rol: "ADMIN" | "DOCENT";
+  rol: "ADMIN" | "DOCENT" | "LEERLING";
+  huiswerkVooraf?: LesHuiswerk[];
   onSluiten: () => void;
   onGewijzigd: () => void | Promise<void>;
 }) {
   const router = useRouter();
+  const { t, isRTL } = useT();
   const isDocent = rol === "DOCENT";
+  const isLeerling = rol === "LEERLING";
   const leerlingen = les.klas.leerlingen ?? [];
 
   const [datum, setDatum] = useState(les.datum.slice(0, 10));
@@ -76,7 +90,7 @@ export function LesDetail({
   const [opgeslagen, setOpgeslagen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [huiswerk, setHuiswerk] = useState<LesHuiswerk[]>([]);
+  const [huiswerk, setHuiswerk] = useState<LesHuiswerk[]>(huiswerkVooraf ?? []);
   const [aanwezigheid, setAanwezigheid] = useState<Record<string, string>>({});
 
   // Huiswerk opnieuw ophalen zodra dit scherm weer op de voorgrond staat —
@@ -125,14 +139,35 @@ export function LesDetail({
       });
     } catch (e) {
       setAanwezigheid((r) => ({ ...r, [leerlingId]: vorige }));
-      setError(e instanceof ApiError ? e.message : "Aanwezigheid opslaan mislukt");
+      setError(e instanceof ApiError ? e.message : t("ld_aanwezigheid_mislukt"));
     }
+  }
+
+  // Huiswerk verwijderen kan alleen hier, bij de les waar het bij hoort. De
+  // API ruimt de doelgroep en de aftekeningen mee op, zodat er niets
+  // achterblijft en de leerling het meteen niet meer ziet.
+  function verwijderHuiswerk(hw: LesHuiswerk) {
+    bevestig(
+      t("ld_hw_verwijderen_titel"),
+      t("ld_hw_verwijderen_vraag", { titel: hw.titel }),
+      async () => {
+        const vorige = huiswerk;
+        setHuiswerk((h) => h.filter((x) => x.id !== hw.id));
+        try {
+          await api(`/api/docent/huiswerk/${hw.id}`, { method: "DELETE" });
+          await onGewijzigd();
+        } catch (e) {
+          setHuiswerk(vorige);
+          setError(e instanceof ApiError ? e.message : t("c_verwijderen_mislukt"));
+        }
+      }
+    );
   }
 
   async function kiesBijlage() {
     setError(null);
-    const { bijlage, error: e } = await pickBijlage();
-    if (e) setError(e);
+    const { bijlage, fout } = await pickBijlage();
+    if (fout) setError(t(fout));
     else if (bijlage) {
       setNieuweBijlage(bijlage);
       setBijlageWeg(false);
@@ -164,7 +199,7 @@ export function LesDetail({
       setOpgeslagen(true);
       await onGewijzigd();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Opslaan mislukt");
+      setError(e instanceof ApiError ? e.message : t("c_opslaan_mislukt"));
     } finally {
       setOpslaan(false);
     }
@@ -172,15 +207,15 @@ export function LesDetail({
 
   function verwijderLes() {
     bevestig(
-      "Les verwijderen",
-      `${les.klas.naam} op ${fmtDatum(les.datum)} definitief verwijderen? De aanwezigheidsregistratie van deze les verdwijnt mee. Huiswerk blijft bestaan, maar is niet langer aan deze les gekoppeld.`,
+      t("ld_les_verwijderen"),
+      t("ld_les_verwijderen_vraag", { klas: les.klas.naam, datum: fmtDatum(les.datum) }),
       async () => {
         try {
           await api(`/api/lessen/${les.id}`, { method: "DELETE" });
           onSluiten();
           await onGewijzigd();
         } catch (e) {
-          setError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+          setError(e instanceof ApiError ? e.message : t("c_verwijderen_mislukt"));
         }
       }
     );
@@ -194,9 +229,9 @@ export function LesDetail({
       contentContainerStyle={{ paddingBottom: 40 }}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.kop}>
+      <View style={[styles.kop, { flexDirection: row(isRTL) }]}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.titel}>
+          <Text style={[styles.titel, { textAlign: textStart(isRTL) }]}>
             {les.klas.naam}
             {les.vak ? ` · ${les.vak.naam}` : ""}
           </Text>
@@ -204,67 +239,89 @@ export function LesDetail({
             {fmtDatum(les.datum)} · {les.begintijd}–{les.eindtijd}
             {les.lokaal ? ` · ${les.lokaal}` : ""}
           </Muted>
+          {les.docenten && les.docenten.length > 0 ? (
+            <Muted>{les.docenten.map((d) => d.name).join(", ")}</Muted>
+          ) : null}
         </View>
-        <Button title="Sluiten" variant="secondary" small onPress={onSluiten} />
+        <Button title={t("c_sluiten")} variant="secondary" small onPress={onSluiten} />
       </View>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && <Text style={[styles.error, { textAlign: textStart(isRTL) }]}>{error}</Text>}
 
-      {isDocent && (
+      {(isDocent || isLeerling) && (
         <>
-          <Text style={styles.sectie}>Huiswerk bij deze les</Text>
+          <Text style={[styles.sectie, { textAlign: textStart(isRTL) }]}>{t("ld_huiswerk_bij_les")}</Text>
           <Card>
             {huiswerk.length === 0 ? (
-              <Muted>Nog geen huiswerk aan deze les gekoppeld.</Muted>
+              <Muted>
+                {isLeerling ? t("ld_geen_huiswerk_leerling") : t("ld_geen_huiswerk_docent")}
+              </Muted>
             ) : (
               huiswerk.map((h) => (
                 <View key={h.id} style={styles.hwRij}>
-                  <Text style={styles.hwTitel}>{h.titel}</Text>
+                  <View style={[styles.hwKop, { flexDirection: row(isRTL) }]}>
+                    <Text style={[styles.hwTitel, { textAlign: textStart(isRTL) }]}>{h.titel}</Text>
+                    {isDocent && (
+                      <Button small title={t("c_verwijderen")} variant="ghost" onPress={() => verwijderHuiswerk(h)} />
+                    )}
+                  </View>
                   <Muted>
                     {h.vak.naam}
-                    {h.deadline ? ` · deadline ${fmtDatum(h.deadline)}` : ""}
-                    {` · ${h.inleveringen.length} ingeleverd`}
+                    {isDocent
+                      ? ` · ${t("ld_n_afgevinkt", { count: h.inleveringen.length })}`
+                      : h.inleveringen.length > 0
+                      ? ` · ${t("ld_afgevinkt_door_docent")}`
+                      : ""}
                   </Muted>
                   {h.beschrijving ? (
                     <LinkText style={styles.hwTekst}>{h.beschrijving}</LinkText>
                   ) : null}
                   {h.hasBijlage ? (
-                    <Text style={styles.link} onPress={() => openAttachment("huiswerk", h.id)}>
-                      📎 Bijlage openen
+                    <Text
+                      style={[styles.link, { textAlign: textStart(isRTL) }]}
+                      onPress={() => openAttachment("huiswerk", h.id)}
+                    >
+                      📎 {t("c_bijlage_openen")}
                     </Text>
                   ) : null}
                 </View>
               ))
             )}
-            <Button
-              title="+ Huiswerk voor deze les"
-              variant="secondary"
-              small
-              onPress={() =>
-                router.push({
-                  pathname: "/docent/huiswerk-nieuw",
-                  params: {
-                    lesId: les.id,
-                    klasId: les.klas.id,
-                    ...(les.vak ? { vakId: les.vak.id } : {}),
-                  },
-                })
-              }
-            />
+            {isDocent && (
+              <Button
+                title={t("ld_hw_toevoegen")}
+                variant="secondary"
+                small
+                onPress={() =>
+                  router.push({
+                    pathname: "/docent/huiswerk-nieuw",
+                    params: {
+                      lesId: les.id,
+                      klasId: les.klas.id,
+                      ...(les.vak ? { vakId: les.vak.id } : {}),
+                    },
+                  })
+                }
+              />
+            )}
           </Card>
+        </>
+      )}
 
-          <Text style={styles.sectie}>Aanwezigheid</Text>
+      {isDocent && (
+        <>
+          <Text style={[styles.sectie, { textAlign: textStart(isRTL) }]}>{t("c_aanwezigheid")}</Text>
           {leerlingen.length === 0 ? (
             <Card>
-              <Muted>Deze klas heeft nog geen leerlingen.</Muted>
+              <Muted>{t("ld_geen_leerlingen")}</Muted>
             </Card>
           ) : (
             leerlingen.map(({ leerling }) => {
               const huidig = aanwezigheid[leerling.id];
               return (
                 <Card key={leerling.id}>
-                  <Text style={styles.leerling}>{leerling.name}</Text>
-                  <View style={styles.statusRij}>
+                  <Text style={[styles.leerling, { textAlign: textStart(isRTL) }]}>{leerling.name}</Text>
+                  <View style={[styles.statusRij, { flexDirection: row(isRTL) }]}>
                     {STATUSES.map((s) => {
                       const actief = huidig === s;
                       const c = STATUS_COLORS[s];
@@ -275,7 +332,7 @@ export function LesDetail({
                           style={[styles.statusChip, actief && { backgroundColor: c.bg, borderColor: c.fg }]}
                         >
                           <Text style={[styles.statusTekst, actief && { color: c.fg, fontFamily: fonts.displayMedium }]}>
-                            {STATUS_LABELS[s]}
+                            {t(`status_${s}`)}
                           </Text>
                         </Pressable>
                       );
@@ -288,59 +345,88 @@ export function LesDetail({
         </>
       )}
 
-      <Text style={styles.sectie}>Lesgegevens</Text>
+      {isLeerling ? (
+        <>
+          <Text style={[styles.sectie, { textAlign: textStart(isRTL) }]}>{t("ld_lesgegevens")}</Text>
+          <Card>
+            <KV k={t("c_vak")} v={les.vak?.naam ?? "—"} />
+            <KV k={t("c_docent")} v={les.docenten?.map((d) => d.name).join(", ") || "—"} />
+            <KV k={t("c_datum")} v={fmtDatum(les.datum)} />
+            <KV k={t("c_begintijd")} v={les.begintijd} />
+            <KV k={t("c_eindtijd")} v={les.eindtijd} />
+            {les.lokaal ? <KV k={t("c_lokaal")} v={les.lokaal} /> : null}
+            {les.beschrijving ? <LinkText style={styles.hwTekst}>{les.beschrijving}</LinkText> : null}
+            {les.hasBijlage ? (
+              <Text
+                style={[styles.link, { textAlign: textStart(isRTL) }]}
+                onPress={() => openAttachment("les", les.id)}
+              >
+                📎 {t("ld_openen_naam", { naam: les.bijlageNaam ?? t("ld_lesbijlage") })}
+              </Text>
+            ) : null}
+          </Card>
+        </>
+      ) : (
+        <>
+      <Text style={[styles.sectie, { textAlign: textStart(isRTL) }]}>{t("ld_lesgegevens")}</Text>
       <Card>
-        <DateField label="Datum" value={datum} onChange={setDatum} />
-        <TimeField label="Begintijd" value={begintijd} onChange={setBegintijd} />
-        <TimeField label="Eindtijd" value={eindtijd} onChange={setEindtijd} />
-        <Input label="Lokaal" value={lokaal} onChangeText={setLokaal} placeholder="Lokaal 2" />
+        <DateField label={t("c_datum")} value={datum} onChange={setDatum} />
+        <TimeField label={t("c_begintijd")} value={begintijd} onChange={setBegintijd} />
+        <TimeField label={t("c_eindtijd")} value={eindtijd} onChange={setEindtijd} />
+        <Input label={t("c_lokaal")} value={lokaal} onChangeText={setLokaal} placeholder={t("c_lokaal2")} />
         <Input
-          label="Omschrijving / opmerking"
+          label={t("c_omschrijving_opmerking")}
           value={beschrijving}
           onChangeText={setBeschrijving}
           multiline
-          placeholder="bijv. Neem soera Al-Mulk door"
+          placeholder={t("ld_omschrijving_ph")}
         />
 
-        <Text style={styles.velLabel}>Bestand</Text>
+        <Text style={[styles.velLabel, { textAlign: textStart(isRTL) }]}>{t("c_bestand")}</Text>
         {nieuweBijlage ? (
-          <View style={styles.bijlageRij}>
-            <Text style={styles.bijlageNaam} numberOfLines={1}>📎 {nieuweBijlage.naam}</Text>
-            <Button small title="Ongedaan maken" variant="ghost" onPress={() => setNieuweBijlage(null)} />
+          <View style={[styles.bijlageRij, { flexDirection: row(isRTL) }]}>
+            <Text style={[styles.bijlageNaam, { textAlign: textStart(isRTL) }]} numberOfLines={1}>
+              📎 {nieuweBijlage.naam}
+            </Text>
+            <Button small title={t("ld_ongedaan_maken")} variant="ghost" onPress={() => setNieuweBijlage(null)} />
           </View>
         ) : heeftBijlage ? (
-          <View style={styles.bijlageRij}>
-            <Text style={styles.bijlageNaam} numberOfLines={1}>
-              📎 {les.bijlageNaam ?? "Lesbijlage"}
+          <View style={[styles.bijlageRij, { flexDirection: row(isRTL) }]}>
+            <Text style={[styles.bijlageNaam, { textAlign: textStart(isRTL) }]} numberOfLines={1}>
+              📎 {les.bijlageNaam ?? t("ld_lesbijlage")}
             </Text>
-            <Button small title="Openen" variant="ghost" onPress={() => openAttachment("les", les.id)} />
-            <Button small title="Weghalen" variant="ghost" onPress={() => setBijlageWeg(true)} />
+            <Button small title={t("c_openen")} variant="ghost" onPress={() => openAttachment("les", les.id)} />
+            <Button small title={t("ld_weghalen")} variant="ghost" onPress={() => setBijlageWeg(true)} />
           </View>
         ) : (
-          <View style={styles.bijlageRij}>
+          <View style={[styles.bijlageRij, { flexDirection: row(isRTL) }]}>
             {bijlageWeg ? (
               <>
-                <Muted>Bijlage wordt weggehaald bij opslaan.</Muted>
-                <Button small title="Toch houden" variant="ghost" onPress={() => setBijlageWeg(false)} />
+                <Muted>{t("ld_bijlage_weg")}</Muted>
+                <Button small title={t("ld_toch_houden")} variant="ghost" onPress={() => setBijlageWeg(false)} />
               </>
             ) : (
-              <Button small title="Bestand bijvoegen (max 4 MB)" variant="secondary" onPress={kiesBijlage} />
+              <Button small title={t("c_bestand_bijvoegen_max")} variant="secondary" onPress={kiesBijlage} />
             )}
           </View>
         )}
 
-        {opgeslagen && <Text style={styles.gelukt}>Wijzigingen opgeslagen.</Text>}
-        <Button title="Wijzigingen opslaan" onPress={bewaar} loading={opslaan} disabled={!datum || !begintijd || !eindtijd} />
+        {opgeslagen && (
+          <Text style={[styles.gelukt, { textAlign: textStart(isRTL) }]}>{t("ld_wijzigingen_opgeslagen")}</Text>
+        )}
+        <Button title={t("ld_wijzigingen_opslaan")} onPress={bewaar} loading={opslaan} disabled={!datum || !begintijd || !eindtijd} />
       </Card>
 
       <View style={styles.gevaar}>
-        <View style={styles.gevaarKop}>
+        <View style={[styles.gevaarKop, { flexDirection: row(isRTL) }]}>
           <Ionicons name="warning-outline" size={16} color={colors.danger} />
-          <Text style={styles.gevaarTitel}>Les verwijderen</Text>
+          <Text style={styles.gevaarTitel}>{t("ld_les_verwijderen")}</Text>
         </View>
-        <Muted>Dit kan niet ongedaan worden gemaakt.</Muted>
-        <Button title="Les verwijderen" variant="danger" onPress={verwijderLes} />
+        <Muted>{t("c_niet_ongedaan")}</Muted>
+        <Button title={t("ld_les_verwijderen")} variant="danger" onPress={verwijderLes} />
       </View>
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -359,7 +445,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   hwRij: { marginBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, paddingBottom: 10 },
-  hwTitel: { fontSize: 15, fontFamily: fonts.display, color: colors.text },
+  hwKop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  hwTitel: { flex: 1, fontSize: 15, fontFamily: fonts.display, color: colors.text },
   hwTekst: { fontSize: 13, color: colors.text, marginTop: 4 },
   link: { color: colors.info, fontSize: 13, textDecorationLine: "underline", marginTop: 6 },
   leerling: { fontSize: 15, fontFamily: fonts.display, color: colors.text, marginBottom: 8 },

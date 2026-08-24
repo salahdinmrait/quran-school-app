@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, Pressable } from "react-native";
 import { bevestig } from "../../lib/confirm";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
-import { Screen, Loading, ErrorView, Card, Muted, Empty, Button, Input, ChipSelect, CheckRow, Badge } from "../../components/ui";
-import { colors, CATEGORIE_LABELS } from "../../lib/theme";
-import { plural } from "../../lib/format";
+import { Screen, Loading, ErrorView, Card, Muted, Empty, Button, Input, ChipSelect, Badge } from "../../components/ui";
+import { PersonPicker } from "../../components/PersonPicker";
+import { colors } from "../../lib/theme";
+import { useT } from "../../lib/LanguageContext";
+import { row } from "../../lib/rtl";
 
 interface KlasSummary {
   id: string;
@@ -26,6 +28,7 @@ interface KlasDetail {
 interface Gebruiker {
   id: string;
   name: string;
+  email: string;
   role: string;
 }
 
@@ -35,6 +38,7 @@ interface Vak {
 }
 
 export default function AdminKlassen() {
+  const { t, tel, isRTL, label } = useT();
   const kl = useFetch<KlasSummary[]>("/api/klassen");
   const gb = useFetch<Gebruiker[]>("/api/gebruikers");
   const vk = useFetch<Vak[]>("/api/vakken");
@@ -60,11 +64,10 @@ export default function AdminKlassen() {
 
   // Leerlingen toevoegen (multi-select)
   const [addLeerlingen, setAddLeerlingen] = useState(false);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [zoek, setZoek] = useState("");
+  const [checked, setChecked] = useState<string[]>([]);
 
   // Docent / vak koppelen
-  const [koppelDocentId, setKoppelDocentId] = useState<string | null>(null);
+  const [koppelDocentIds, setKoppelDocentIds] = useState<string[]>([]);
   const [koppelVakId, setKoppelVakId] = useState<string | null>(null);
 
   const loadDetail = useCallback(async (klasId: string) => {
@@ -74,7 +77,7 @@ export default function AdminKlassen() {
       const d = await api<KlasDetail>(`/api/klassen/${klasId}`);
       setDetail(d);
     } catch (e) {
-      setDetailError(e instanceof ApiError ? e.message : "Kon klas niet laden");
+      setDetailError(e instanceof ApiError ? e.message : t("ak_laden_mislukt"));
     } finally {
       setDetailLoading(false);
     }
@@ -107,7 +110,7 @@ export default function AdminKlassen() {
       setShowForm(false);
       await kl.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Kon klas niet aanmaken");
+      setError(e instanceof ApiError ? e.message : t("ak_aanmaken_mislukt"));
     } finally {
       setSaving(false);
     }
@@ -121,7 +124,7 @@ export default function AdminKlassen() {
       if (openId) await loadDetail(openId);
       if (refreshList) await kl.reload();
     } catch (e) {
-      setDetailError(e instanceof ApiError ? e.message : "Actie mislukt");
+      setDetailError(e instanceof ApiError ? e.message : t("c_actie_mislukt"));
     } finally {
       setBusy(false);
     }
@@ -140,8 +143,8 @@ export default function AdminKlassen() {
 
   function confirmDeleteKlas(k: KlasDetail) {
     bevestig(
-      "Klas verwijderen",
-      `"${k.naam}" naar het archief verplaatsen?`,
+      t("ak_klas_verwijderen"),
+      t("c_archiveren_vraag", { naam: k.naam }),
       () =>
         doAction(async () => {
           await api(`/api/klassen/${k.id}`, { method: "DELETE" });
@@ -151,7 +154,7 @@ export default function AdminKlassen() {
   }
 
   function confirmRemoveLeerling(klasId: string, l: { id: string; name: string }) {
-    bevestig("Leerling verwijderen", `${l.name} uit deze klas halen?`, () =>
+    bevestig(t("ak_leerling_verwijderen"), t("ak_leerling_vraag", { naam: l.name }), () =>
       doAction(async () => {
         await api(`/api/klassen/${klasId}/leerlingen`, {
           method: "DELETE",
@@ -162,15 +165,14 @@ export default function AdminKlassen() {
   }
 
   async function handleAddLeerlingen(klasId: string) {
-    if (checked.size === 0) return;
+    if (checked.length === 0) return;
     await doAction(async () => {
       await api(`/api/klassen/${klasId}/leerlingen`, {
         method: "POST",
-        body: JSON.stringify({ leerlingIds: Array.from(checked) }),
+        body: JSON.stringify({ leerlingIds: checked }),
       });
-      setChecked(new Set());
+      setChecked([]);
       setAddLeerlingen(false);
-      setZoek("");
     }, true);
   }
 
@@ -181,29 +183,26 @@ export default function AdminKlassen() {
   const beschikbareLeerlingen = leerlingen.filter((l) => !linkedLeerlingIds.has(l.id));
   const beschikbareDocenten = docenten.filter((d) => !linkedDocentIds.has(d.id));
   const beschikbareVakken = vakken.filter((v) => !linkedVakIds.has(v.id));
-  const gefilterdeLeerlingen = zoek.trim()
-    ? beschikbareLeerlingen.filter((l) => l.name.toLowerCase().includes(zoek.trim().toLowerCase()))
-    : beschikbareLeerlingen;
 
   return (
     <Screen refreshing={kl.refreshing} onRefresh={kl.refresh}>
       <Button
-        title={showForm ? "Formulier sluiten" : "+ Nieuwe klas"}
+        title={showForm ? t("sm_form_sluiten") : t("ak_nieuwe_klas")}
         variant={showForm ? "secondary" : "primary"}
         onPress={() => setShowForm(!showForm)}
       />
 
       {showForm && (
         <Card>
-          <Input label="Naam *" value={naam} onChangeText={setNaam} placeholder="bijv. Klas 1A" />
-          <Input label="Beschrijving" value={beschrijving} onChangeText={setBeschrijving} />
+          <Input label={t("c_naam_verplicht")} value={naam} onChangeText={setNaam} placeholder={t("ak_naam_ph")} />
+          <Input label={t("c_beschrijving")} value={beschrijving} onChangeText={setBeschrijving} />
           {error && <Text style={styles.error}>{error}</Text>}
-          <Button title="Klas aanmaken" onPress={handleCreate} loading={saving} disabled={!naam} />
+          <Button title={t("ak_klas_aanmaken")} onPress={handleCreate} loading={saving} disabled={!naam} />
         </Card>
       )}
 
       {klassen.length === 0 ? (
-        <Empty text="Nog geen klassen." />
+        <Empty text={t("ak_geen_klassen")} />
       ) : (
         klassen.map((k) => {
           const expanded = openId === k.id;
@@ -215,21 +214,21 @@ export default function AdminKlassen() {
                   setOpenId(expanded ? null : k.id);
                   setEditNaam(false);
                   setAddLeerlingen(false);
-                  setChecked(new Set());
-                  setKoppelDocentId(null);
+                  setChecked([]);
+                  setKoppelDocentIds([]);
                   setKoppelVakId(null);
                 }}
               >
                 <Text style={styles.title}>{k.naam}</Text>
                 <Muted>
-                  {plural(k._count.leerlingen, "leerling", "leerlingen")} · {plural(k._count.docenten, "docent", "docenten")} · {plural(k._count.vakken, "vak", "vakken")}
+                  {tel("c_n_leerlingen", k._count.leerlingen)} · {tel("c_n_docenten", k._count.docenten)} · {tel("c_n_vakken", k._count.vakken)}
                 </Muted>
                 {k.beschrijving ? <Muted style={{ marginTop: 2 }}>{k.beschrijving}</Muted> : null}
               </Pressable>
 
               {expanded && (
                 <View style={styles.detail}>
-                  {detailLoading && <Muted>Laden...</Muted>}
+                  {detailLoading && <Muted>{t("c_laden")}</Muted>}
                   {detailError && <Text style={styles.error}>{detailError}</Text>}
 
                   {detail && detail.id === k.id && (
@@ -237,18 +236,18 @@ export default function AdminKlassen() {
                       {/* ── Naam bewerken / klas verwijderen ── */}
                       {editNaam ? (
                         <View>
-                          <Input label="Naam" value={nieuweNaam} onChangeText={setNieuweNaam} />
-                          <Input label="Beschrijving" value={nieuweBeschrijving} onChangeText={setNieuweBeschrijving} />
-                          <View style={styles.btnRow}>
-                            <Button small title="Opslaan" onPress={saveNaam} loading={busy} disabled={nieuweNaam.trim().length < 2} />
-                            <Button small title="Annuleren" variant="ghost" onPress={() => setEditNaam(false)} />
+                          <Input label={t("c_naam")} value={nieuweNaam} onChangeText={setNieuweNaam} />
+                          <Input label={t("c_beschrijving")} value={nieuweBeschrijving} onChangeText={setNieuweBeschrijving} />
+                          <View style={[styles.btnRow, { flexDirection: row(isRTL) }]}>
+                            <Button small title={t("c_opslaan")} onPress={saveNaam} loading={busy} disabled={nieuweNaam.trim().length < 2} />
+                            <Button small title={t("c_annuleren")} variant="ghost" onPress={() => setEditNaam(false)} />
                           </View>
                         </View>
                       ) : (
-                        <View style={styles.btnRow}>
+                        <View style={[styles.btnRow, { flexDirection: row(isRTL) }]}>
                           <Button
                             small
-                            title="Naam bewerken"
+                            title={t("ak_naam_bewerken")}
                             variant="secondary"
                             onPress={() => {
                               setNieuweNaam(detail.naam);
@@ -256,21 +255,21 @@ export default function AdminKlassen() {
                               setEditNaam(true);
                             }}
                           />
-                          <Button small title="Klas verwijderen" variant="danger" onPress={() => confirmDeleteKlas(detail)} />
+                          <Button small title={t("ak_klas_verwijderen")} variant="danger" onPress={() => confirmDeleteKlas(detail)} />
                         </View>
                       )}
 
                       {/* ── Leerlingen ── */}
-                      <Text style={styles.subTitle}>Leerlingen ({detail.leerlingen.length})</Text>
+                      <Text style={styles.subTitle}>{t("ak_leerlingen_n", { count: detail.leerlingen.length })}</Text>
                       {detail.leerlingen.length === 0 ? (
-                        <Muted>Nog geen leerlingen ingeschreven.</Muted>
+                        <Muted>{t("ak_geen_lln")}</Muted>
                       ) : (
                         detail.leerlingen.map((x) => (
-                          <View key={x.id} style={styles.personRow}>
+                          <View key={x.id} style={[styles.personRow, { flexDirection: row(isRTL) }]}>
                             <Text style={styles.personNaam}>{x.leerling.name}</Text>
                             <Button
                               small
-                              title="Verwijderen"
+                              title={t("c_verwijderen")}
                               variant="ghost"
                               onPress={() => confirmRemoveLeerling(detail.id, { id: x.leerlingId, name: x.leerling.name })}
                             />
@@ -280,56 +279,41 @@ export default function AdminKlassen() {
 
                       {addLeerlingen ? (
                         <View style={styles.addBox}>
-                          {beschikbareLeerlingen.length > 6 && (
-                            <Input value={zoek} onChangeText={setZoek} placeholder="Zoeken op naam..." />
-                          )}
-                          {gefilterdeLeerlingen.length === 0 ? (
-                            <Muted>Geen beschikbare leerlingen.</Muted>
-                          ) : (
-                            gefilterdeLeerlingen.map((l) => (
-                              <CheckRow
-                                key={l.id}
-                                label={l.name}
-                                checked={checked.has(l.id)}
-                                onToggle={() =>
-                                  setChecked((prev) => {
-                                    const next = new Set(prev);
-                                    if (next.has(l.id)) next.delete(l.id);
-                                    else next.add(l.id);
-                                    return next;
-                                  })
-                                }
-                              />
-                            ))
-                          )}
-                          <View style={styles.btnRow}>
+                          <PersonPicker
+                            personen={beschikbareLeerlingen}
+                            geselecteerd={checked}
+                            onChange={setChecked}
+                            placeholder={t("dc_zoek_leerling")}
+                            leegTekst={t("ak_geen_besch_lln")}
+                          />
+                          <View style={[styles.btnRow, { flexDirection: row(isRTL) }]}>
                             <Button
                               small
-                              title={`Inschrijven (${checked.size})`}
+                              title={t("ak_inschrijven", { count: checked.length })}
                               onPress={() => handleAddLeerlingen(detail.id)}
                               loading={busy}
-                              disabled={checked.size === 0}
+                              disabled={checked.length === 0}
                             />
-                            <Button small title="Annuleren" variant="ghost" onPress={() => { setAddLeerlingen(false); setChecked(new Set()); }} />
+                            <Button small title={t("c_annuleren")} variant="ghost" onPress={() => { setAddLeerlingen(false); setChecked([]); }} />
                           </View>
                         </View>
                       ) : (
                         beschikbareLeerlingen.length > 0 && (
-                          <Button small title="+ Leerlingen toevoegen" variant="secondary" onPress={() => setAddLeerlingen(true)} />
+                          <Button small title={t("ak_lln_toevoegen")} variant="secondary" onPress={() => setAddLeerlingen(true)} />
                         )
                       )}
 
                       {/* ── Docenten ── */}
-                      <Text style={styles.subTitle}>Docenten ({detail.docenten.length})</Text>
+                      <Text style={styles.subTitle}>{t("ak_docenten_n", { count: detail.docenten.length })}</Text>
                       {detail.docenten.length === 0 ? (
-                        <Muted>Nog geen docenten gekoppeld.</Muted>
+                        <Muted>{t("ak_geen_doc")}</Muted>
                       ) : (
                         detail.docenten.map((x) => (
-                          <View key={x.id} style={styles.personRow}>
+                          <View key={x.id} style={[styles.personRow, { flexDirection: row(isRTL) }]}>
                             <Text style={styles.personNaam}>{x.docent.name}</Text>
                             <Button
                               small
-                              title="Verwijderen"
+                              title={t("c_verwijderen")}
                               variant="ghost"
                               onPress={() =>
                                 doAction(async () => {
@@ -345,43 +329,46 @@ export default function AdminKlassen() {
                       )}
                       {beschikbareDocenten.length > 0 && (
                         <View>
-                          <ChipSelect
-                            options={beschikbareDocenten.map((d) => ({ value: d.id, label: d.name }))}
-                            value={koppelDocentId}
-                            onChange={setKoppelDocentId}
+                          <PersonPicker
+                            personen={beschikbareDocenten}
+                            geselecteerd={koppelDocentIds}
+                            onChange={setKoppelDocentIds}
+                            multi={false}
+                            placeholder={t("ak_zoek_docent")}
+                            leegTekst={t("ak_geen_besch_doc")}
                           />
                           <Button
                             small
-                            title="Docent koppelen"
+                            title={t("ak_docent_koppelen")}
                             onPress={() =>
                               doAction(async () => {
                                 await api(`/api/klassen/${detail.id}/docenten`, {
                                   method: "POST",
-                                  body: JSON.stringify({ docentId: koppelDocentId }),
+                                  body: JSON.stringify({ docentId: koppelDocentIds[0] }),
                                 });
-                                setKoppelDocentId(null);
+                                setKoppelDocentIds([]);
                               }, true)
                             }
                             loading={busy}
-                            disabled={!koppelDocentId}
+                            disabled={koppelDocentIds.length === 0}
                           />
                         </View>
                       )}
 
                       {/* ── Vakken ── */}
-                      <Text style={styles.subTitle}>Vakken ({detail.vakken.length})</Text>
+                      <Text style={styles.subTitle}>{t("ak_vakken_n", { count: detail.vakken.length })}</Text>
                       {detail.vakken.length === 0 ? (
-                        <Muted>Nog geen vakken gekoppeld.</Muted>
+                        <Muted>{t("ak_geen_vakken")}</Muted>
                       ) : (
                         detail.vakken.map((x) => (
-                          <View key={x.id} style={styles.personRow}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+                          <View key={x.id} style={[styles.personRow, { flexDirection: row(isRTL) }]}>
+                            <View style={{ flexDirection: row(isRTL), alignItems: "center", gap: 6, flex: 1 }}>
                               <Text style={styles.personNaam}>{x.vak.naam}</Text>
-                              <Badge text={CATEGORIE_LABELS[x.vak.categorie] ?? x.vak.categorie} />
+                              <Badge text={label("categorie", x.vak.categorie)} />
                             </View>
                             <Button
                               small
-                              title="Verwijderen"
+                              title={t("c_verwijderen")}
                               variant="ghost"
                               onPress={() =>
                                 doAction(async () => {
@@ -404,7 +391,7 @@ export default function AdminKlassen() {
                           />
                           <Button
                             small
-                            title="Vak koppelen"
+                            title={t("ak_vak_koppelen")}
                             onPress={() =>
                               doAction(async () => {
                                 await api(`/api/klassen/${detail.id}/vakken`, {
@@ -443,7 +430,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   personRow: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
@@ -452,7 +438,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   personNaam: { fontSize: 14, color: colors.text, flexShrink: 1 },
-  btnRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  btnRow: { gap: 8, flexWrap: "wrap" },
   addBox: { marginTop: 6 },
   error: { color: colors.danger, marginBottom: 8 },
 });

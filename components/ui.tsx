@@ -11,6 +11,12 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, radius, shadows } from "../lib/theme";
+import { useT } from "../lib/LanguageContext";
+import { row, textEnd, textStart } from "../lib/rtl";
+
+// De basiscomponenten kennen de taalrichting zelf. Daardoor hoeft geen enkel
+// scherm apart te regelen dat een label, een chip of een sleutel-waarderij in
+// het Arabisch aan de goede kant begint.
 
 // ── Screen wrapper ────────────────────────────────────────────────────────────
 
@@ -49,12 +55,13 @@ export function Loading() {
 }
 
 export function ErrorView({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useT();
   return (
     <View style={styles.center}>
       <Ionicons name="alert-circle-outline" size={40} color={colors.danger} />
       <Text style={styles.errorText}>{message}</Text>
       {onRetry && (
-        <Button title="Opnieuw proberen" onPress={onRetry} variant="secondary" />
+        <Button title={t("c_opnieuw_proberen")} onPress={onRetry} variant="secondary" />
       )}
     </View>
   );
@@ -96,15 +103,18 @@ export function Card({
 // ── Typography ───────────────────────────────────────────────────────────────
 
 export function Title({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.title}>{children}</Text>;
+  const { isRTL } = useT();
+  return <Text style={[styles.title, { textAlign: textStart(isRTL) }]}>{children}</Text>;
 }
 
 export function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.sectionTitle}>{children}</Text>;
+  const { isRTL } = useT();
+  return <Text style={[styles.sectionTitle, { textAlign: textStart(isRTL) }]}>{children}</Text>;
 }
 
 export function Muted({ children, style }: { children: React.ReactNode; style?: object }) {
-  return <Text style={[styles.muted, style]}>{children}</Text>;
+  const { isRTL } = useT();
+  return <Text style={[styles.muted, { textAlign: textStart(isRTL) }, style]}>{children}</Text>;
 }
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
@@ -118,9 +128,13 @@ export function Badge({
   bg?: string;
   fg?: string;
 }) {
+  const { isRTL } = useT();
+  // flexShrink zodat een langer Arabisch label de rij niet uit elkaar duwt.
   return (
-    <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Text style={[styles.badgeText, { color: fg }]}>{text}</Text>
+    <View style={[styles.badge, { backgroundColor: bg, alignSelf: isRTL ? "flex-end" : "flex-start" }]}>
+      <Text style={[styles.badgeText, { color: fg }]} numberOfLines={1}>
+        {text}
+      </Text>
     </View>
   );
 }
@@ -196,9 +210,13 @@ export function Input({
   keyboardType?: "default" | "email-address" | "numeric" | "phone-pad";
   autoCapitalize?: "none" | "sentences" | "words";
 }) {
+  const { isRTL } = useT();
+  // Een wachtwoord- of e-mailveld blijft links uitgelijnd: dat zijn latijnse
+  // tekens, ook in het Arabisch.
+  const latijns = !!secureTextEntry || keyboardType === "email-address" || keyboardType === "numeric";
   return (
     <View style={styles.inputWrap}>
-      {label ? <Text style={styles.inputLabel}>{label}</Text> : null}
+      {label ? <Text style={[styles.inputLabel, { textAlign: textStart(isRTL) }]}>{label}</Text> : null}
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -208,7 +226,7 @@ export function Input({
         multiline={multiline}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize ?? (secureTextEntry || keyboardType === "email-address" ? "none" : "sentences")}
-        style={[styles.input, multiline && styles.inputMultiline]}
+        style={[styles.input, multiline && styles.inputMultiline, { textAlign: latijns ? "left" : textStart(isRTL) }]}
       />
     </View>
   );
@@ -227,10 +245,11 @@ export function ChipSelect<T extends string>({
   value: T | null;
   onChange: (v: T) => void;
 }) {
+  const { isRTL } = useT();
   return (
     <View style={styles.inputWrap}>
-      {label ? <Text style={styles.inputLabel}>{label}</Text> : null}
-      <View style={styles.chipRow}>
+      {label ? <Text style={[styles.inputLabel, { textAlign: textStart(isRTL) }]}>{label}</Text> : null}
+      <View style={[styles.chipRow, { flexDirection: row(isRTL) }]}>
         {options.map((o) => (
           <Pressable
             key={o.value}
@@ -260,16 +279,20 @@ export function CheckRow({
   checked: boolean;
   onToggle: () => void;
 }) {
+  const { isRTL } = useT();
   return (
-    <Pressable onPress={onToggle} style={({ pressed }) => [styles.checkRow, pressed && { opacity: 0.85 }]}>
+    <Pressable
+      onPress={onToggle}
+      style={({ pressed }) => [styles.checkRow, { flexDirection: row(isRTL) }, pressed && { opacity: 0.85 }]}
+    >
       <Ionicons
         name={checked ? "checkbox" : "square-outline"}
         size={22}
         color={checked ? colors.primary : colors.textFaint}
       />
       <View style={{ flex: 1 }}>
-        <Text style={styles.checkLabel}>{label}</Text>
-        {sublabel ? <Text style={styles.checkSublabel}>{sublabel}</Text> : null}
+        <Text style={[styles.checkLabel, { textAlign: textStart(isRTL) }]}>{label}</Text>
+        {sublabel ? <Text style={[styles.checkSublabel, { textAlign: textStart(isRTL) }]}>{sublabel}</Text> : null}
       </View>
     </Pressable>
   );
@@ -290,21 +313,22 @@ export function MenuTile({
   onPress: () => void;
   badge?: number;
 }) {
+  const { isRTL } = useT();
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.tile, pressed && { opacity: 0.85 }]}
     >
-      <View style={styles.tileIcon}>
+      <View style={[styles.tileIcon, { alignSelf: isRTL ? "flex-end" : "flex-start" }]}>
         <Ionicons name={icon} size={22} color={colors.primaryDark} />
         {badge ? (
-          <View style={styles.tileBadge}>
+          <View style={[styles.tileBadge, isRTL ? { left: -6 } : { right: -6 }]}>
             <Text style={styles.tileBadgeText}>{badge > 99 ? "99+" : badge}</Text>
           </View>
         ) : null}
       </View>
-      <Text style={styles.tileTitle}>{title}</Text>
-      {subtitle ? <Text style={styles.tileSubtitle}>{subtitle}</Text> : null}
+      <Text style={[styles.tileTitle, { textAlign: textStart(isRTL) }]}>{title}</Text>
+      {subtitle ? <Text style={[styles.tileSubtitle, { textAlign: textStart(isRTL) }]}>{subtitle}</Text> : null}
     </Pressable>
   );
 }
@@ -312,10 +336,11 @@ export function MenuTile({
 // ── Key-value row ─────────────────────────────────────────────────────────────
 
 export function KV({ k, v }: { k: string; v: string }) {
+  const { isRTL } = useT();
   return (
-    <View style={styles.kvRow}>
+    <View style={[styles.kvRow, { flexDirection: row(isRTL) }]}>
       <Text style={styles.kvKey}>{k}</Text>
-      <Text style={styles.kvVal}>{v}</Text>
+      <Text style={[styles.kvVal, { textAlign: textEnd(isRTL) }]}>{v}</Text>
     </View>
   );
 }
@@ -350,7 +375,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.surface,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    alignSelf: "flex-start",
+    flexShrink: 1,
   },
   badgeText: { fontSize: 11, fontFamily: fonts.displayMedium },
   button: {
@@ -362,7 +387,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   buttonSmall: { paddingVertical: 7, paddingHorizontal: 12 },
-  buttonText: { fontSize: 15, fontFamily: fonts.display },
+  buttonText: { fontSize: 15, fontFamily: fonts.display, textAlign: "center" },
   inputWrap: { marginBottom: 12 },
   inputLabel: { fontSize: 13, fontFamily: fonts.bodyMedium, color: colors.textMuted, marginBottom: 4 },
   input: {
@@ -378,7 +403,7 @@ const styles = StyleSheet.create({
     ...shadows.input,
   },
   inputMultiline: { minHeight: 90, textAlignVertical: "top" },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chipRow: { flexWrap: "wrap", gap: 8 },
   chip: {
     borderRadius: radius.button,
     borderWidth: 1,
@@ -411,7 +436,6 @@ const styles = StyleSheet.create({
   tileBadge: {
     position: "absolute",
     top: -6,
-    right: -6,
     backgroundColor: colors.danger,
     borderRadius: radius.surface,
     minWidth: 18,
@@ -422,7 +446,6 @@ const styles = StyleSheet.create({
   },
   tileBadgeText: { color: "#fff", fontSize: 10, fontFamily: fonts.displayBold },
   checkRow: {
-    flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingVertical: 8,
@@ -434,12 +457,11 @@ const styles = StyleSheet.create({
   tileTitle: { fontSize: 15, fontFamily: fonts.display, color: colors.text },
   tileSubtitle: { fontSize: 12, color: colors.textMuted, marginTop: 2, fontFamily: fonts.body },
   kvRow: {
-    flexDirection: "row",
     justifyContent: "space-between",
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
   kvKey: { color: colors.textMuted, fontSize: 14 },
-  kvVal: { color: colors.text, fontSize: 14, fontWeight: "500", flexShrink: 1, textAlign: "right" },
+  kvVal: { color: colors.text, fontSize: 14, fontWeight: "500", flexShrink: 1 },
 });

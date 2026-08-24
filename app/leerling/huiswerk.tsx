@@ -1,12 +1,17 @@
 import { useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useFetch } from "../../lib/useFetch";
-import { api, ApiError } from "../../lib/api";
-import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input } from "../../components/ui";
+import { useT } from "../../lib/LanguageContext";
+import { row, textStart } from "../../lib/rtl";
+import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty } from "../../components/ui";
 import { LinkText } from "../../components/LinkText";
-import { pickBijlage, openAttachment, GekozenBijlage } from "../../lib/bijlage";
+import { openAttachment } from "../../lib/bijlage";
 import { colors } from "../../lib/theme";
-import { fmtDatum, fmtDatumTijd, isVerlopen } from "../../lib/format";
+import { fmtDatum, fmtDatumTijd } from "../../lib/format";
+
+// De leerling levert niets in: de docent vinkt af of het huiswerk gedaan is.
+// Dit scherm is daarom alleen-lezen. Een ouder, echt door de leerling
+// ingeleverd antwoord blijft wel zichtbaar - dat is data van de leerling zelf.
 
 interface Inlevering {
   id: string;
@@ -22,11 +27,11 @@ interface Huiswerk {
   id: string;
   titel: string;
   beschrijving: string | null;
-  deadline: string | null;
   vak: { naam: string; categorie: string };
+  lesDatum: string | null;
   bijlageNaam: string | null;
   hasBijlage: boolean;
-  ingeLeverd: boolean;
+  afgevinkt: boolean;
   inlevering?: Inlevering;
 }
 
@@ -40,123 +45,77 @@ interface KlasRanking {
 }
 
 export default function LeerlingHuiswerk() {
+  const { t, isRTL } = useT();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Huiswerk[]>("/api/leerling/huiswerk");
   const rk = useFetch<KlasRanking[]>("/api/leerling/ranking");
   const [openId, setOpenId] = useState<string | null>(null);
-
-  // Inlever-state voor het geopende item
-  const [tekst, setTekst] = useState("");
-  const [bijlage, setBijlage] = useState<GekozenBijlage | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [inleverError, setInleverError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
 
   if (loading) return <Loading />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
 
   const rankings = (rk.data ?? []).filter((r) => r.totaalHw > 0);
-  const open = (data ?? []).filter((h) => !h.ingeLeverd);
-  const klaar = (data ?? []).filter((h) => h.ingeLeverd);
+  const open = (data ?? []).filter((h) => !h.afgevinkt);
+  const klaar = (data ?? []).filter((h) => h.afgevinkt);
 
   function toggle(id: string) {
     setOpenId(openId === id ? null : id);
-    setTekst("");
-    setBijlage(null);
-    setInleverError(null);
-    setEditing(false);
-  }
-
-  async function kies() {
-    setInleverError(null);
-    const { bijlage: b, error: e } = await pickBijlage();
-    if (e) setInleverError(e);
-    else if (b) setBijlage(b);
-  }
-
-  async function inleveren(hw: Huiswerk) {
-    if (!tekst.trim() && !bijlage) {
-      setInleverError("Schrijf iets of voeg een bestand toe.");
-      return;
-    }
-    setBusy(true);
-    setInleverError(null);
-    try {
-      await api("/api/leerling/inlevering", {
-        method: "POST",
-        body: JSON.stringify({
-          huiswerkId: hw.id,
-          inhoud: tekst.trim(),
-          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageData: bijlage.data, bijlageType: bijlage.type } : {}),
-        }),
-      });
-      setTekst("");
-      setBijlage(null);
-      setEditing(false);
-      await reload();
-    } catch (e) {
-      setInleverError(e instanceof ApiError ? e.message : "Inleveren mislukt");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function renderInleverForm(hw: Huiswerk) {
-    return (
-      <View style={styles.inleverForm}>
-        <Input value={tekst} onChangeText={setTekst} placeholder="Typ je antwoord (optioneel)..." multiline />
-        <View style={styles.bijlageRow}>
-          {bijlage ? (
-            <>
-              <Text style={styles.bijlageNaam} numberOfLines={1}>📎 {bijlage.naam}</Text>
-              <Button small title="Verwijderen" variant="ghost" onPress={() => setBijlage(null)} />
-            </>
-          ) : (
-            <Button small title="Bestand kiezen (foto/pdf/audio)" variant="secondary" onPress={kies} />
-          )}
-        </View>
-        {inleverError && <Text style={styles.error}>{inleverError}</Text>}
-        <Button title="Inleveren" onPress={() => inleveren(hw)} loading={busy} disabled={!tekst.trim() && !bijlage} />
-      </View>
-    );
   }
 
   function renderItem(hw: Huiswerk) {
     const expanded = openId === hw.id;
-    const verlopen = !hw.ingeLeverd && isVerlopen(hw.deadline);
     const inl = hw.inlevering;
-    // "Afgerond" als de docent heeft afgevinkt met "✓"; anders is het een eigen inlevering ter beoordeling
-    const eigenInlevering = inl && inl.inhoud !== "✓";
+    // "✓" is de afvink-notitie van de docent; echte tekst is een oudere
+    // inlevering van de leerling zelf en blijft leesbaar.
+    const eigenInlevering = inl && inl.inhoud !== "✓" && inl.inhoud.trim() !== "";
     return (
       <Card key={hw.id}>
         {/* Alleen de kop-rij toggle't — anders klapt de kaart op web dicht bij klikken in het inleverformulier */}
-        <Pressable onPress={() => toggle(hw.id)} style={styles.row}>
+        <Pressable onPress={() => toggle(hw.id)} style={[styles.row, { flexDirection: row(isRTL) }]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{hw.titel}</Text>
-            <Muted>{hw.vak.naam} · deadline {fmtDatum(hw.deadline)}</Muted>
+            <Text style={[styles.title, { textAlign: textStart(isRTL) }]}>{hw.titel}</Text>
+            <Muted>
+              {hw.vak.naam}
+              {hw.lesDatum ? ` · ${t("lh_les_datum", { datum: fmtDatum(hw.lesDatum) })}` : ""}
+            </Muted>
           </View>
-          {hw.ingeLeverd ? (
-            <Badge text="Ingeleverd ✓" />
-          ) : verlopen ? (
-            <Badge text="Verlopen" bg={colors.dangerLight} fg={colors.danger} />
+          {hw.afgevinkt ? (
+            <Badge text={t("c_afgevinkt")} />
           ) : (
-            <Badge text="Open" bg={colors.warningLight} fg={colors.warning} />
+            <Badge text={t("c_open")} bg={colors.warningLight} fg={colors.warning} />
           )}
         </Pressable>
 
         {expanded && (
           <View style={styles.detail}>
-            {hw.beschrijving ? <LinkText style={styles.beschrijving}>{hw.beschrijving}</LinkText> : null}
+            {hw.beschrijving ? (
+              <LinkText style={[styles.beschrijving, { textAlign: textStart(isRTL) }]}>{hw.beschrijving}</LinkText>
+            ) : null}
             {hw.hasBijlage && (
-              <Text style={styles.bijlageText} onPress={() => openAttachment("huiswerk", hw.id)}>📎 {hw.bijlageNaam ?? "Bijlage openen"}</Text>
+              <Text
+                style={[styles.bijlageText, { textAlign: textStart(isRTL) }]}
+                onPress={() => openAttachment("huiswerk", hw.id)}
+              >
+                📎 {hw.bijlageNaam ?? t("c_bijlage_openen")}
+              </Text>
             )}
 
-            {/* Eigen inlevering tonen */}
+            {/* Een eerder ingeleverd antwoord blijft leesbaar, maar is niet
+                meer te wijzigen. */}
             {eigenInlevering && inl && (
               <View style={styles.inleveringBox}>
-                <Text style={styles.opmerkingLabel}>Jouw inlevering ({fmtDatumTijd(inl.createdAt)}):</Text>
-                {inl.inhoud ? <Text style={styles.opmerkingText}>{inl.inhoud}</Text> : null}
+                <Text style={[styles.opmerkingLabel, { textAlign: textStart(isRTL) }]}>
+                  {t("lh_eerdere_inlevering", { moment: fmtDatumTijd(inl.createdAt) })}
+                </Text>
+                {inl.inhoud ? (
+                  <Text style={[styles.opmerkingText, { textAlign: textStart(isRTL) }]}>{inl.inhoud}</Text>
+                ) : null}
                 {inl.hasBijlage ? (
-                  <Text style={styles.bijlageText} onPress={() => openAttachment("inlevering", inl.id)}>📎 {inl.bijlageNaam ?? "Jouw bestand"}</Text>
+                  <Text
+                    style={[styles.bijlageText, { textAlign: textStart(isRTL) }]}
+                    onPress={() => openAttachment("inlevering", inl.id)}
+                  >
+                    📎 {inl.bijlageNaam ?? t("lh_jouw_bestand")}
+                  </Text>
                 ) : null}
               </View>
             )}
@@ -164,21 +123,14 @@ export default function LeerlingHuiswerk() {
             {/* Docent-opmerking */}
             {inl?.opmerking ? (
               <View style={styles.opmerkingBox}>
-                <Text style={styles.opmerkingLabel}>Opmerking van docent:</Text>
-                <LinkText style={styles.opmerkingText}>{inl.opmerking}</LinkText>
+                <Text style={[styles.opmerkingLabel, { textAlign: textStart(isRTL) }]}>{t("c_opmerking_docent")}</Text>
+                <LinkText style={[styles.opmerkingText, { textAlign: textStart(isRTL) }]}>{inl.opmerking}</LinkText>
               </View>
             ) : null}
 
-            {/* Inleveren / wijzigen */}
-            {!hw.ingeLeverd && renderInleverForm(hw)}
-            {hw.ingeLeverd && eigenInlevering && (
-              editing ? renderInleverForm(hw) : (
-                <Button small title="Inlevering wijzigen" variant="secondary" onPress={() => { setEditing(true); setTekst(inl?.inhoud ?? ""); }} />
-              )
-            )}
-            {hw.ingeLeverd && !eigenInlevering && (
-              <Muted style={{ marginTop: 8 }}>Afgevinkt door de docent.</Muted>
-            )}
+            <Muted style={{ marginTop: 8 }}>
+              {hw.afgevinkt ? t("lh_afgevinkt_uitleg") : t("lh_open_uitleg")}
+            </Muted>
           </View>
         )}
       </Card>
@@ -189,9 +141,11 @@ export default function LeerlingHuiswerk() {
     <Screen refreshing={refreshing} onRefresh={refresh}>
       {rankings.map((r) => (
         <View key={r.klasId} style={styles.rankCard}>
-          <Text style={styles.rankTitle}>Klassement {r.klasNaam}</Text>
+          <Text style={[styles.rankTitle, { textAlign: textStart(isRTL) }]}>
+            {t("lh_klassement", { klas: r.klasNaam })}
+          </Text>
           {r.top3.map((item) => (
-            <View key={item.leerling.id} style={styles.rankRow}>
+            <View key={item.leerling.id} style={[styles.rankRow, { flexDirection: row(isRTL) }]}>
               <View style={[styles.rankNum, item.positie === 1 && styles.rankNumLead]}>
                 <Text style={[styles.rankNumText, item.positie === 1 && styles.rankNumTextLead]}>{item.positie}</Text>
               </View>
@@ -200,24 +154,30 @@ export default function LeerlingHuiswerk() {
             </View>
           ))}
           {r.eigenPositie !== null && (
-            <Text style={styles.eigenPositie}>Jouw positie: #{r.eigenPositie} · {r.eigenPercentage}% ingeleverd</Text>
+            <Text style={[styles.eigenPositie, { textAlign: textStart(isRTL) }]}>
+              {t("lh_jouw_positie", { positie: r.eigenPositie, pct: r.eigenPercentage })}
+            </Text>
           )}
         </View>
       ))}
 
       {(data ?? []).length === 0 ? (
-        <Empty text="Nog geen huiswerk." />
+        <Empty text={t("lh_geen")} />
       ) : (
         <>
           {open.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>Open ({open.length})</Text>
+              <Text style={[styles.sectionLabel, { textAlign: textStart(isRTL) }]}>
+                {t("lh_open_n", { count: open.length })}
+              </Text>
               {open.map(renderItem)}
             </>
           )}
           {klaar.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>Ingeleverd ({klaar.length})</Text>
+              <Text style={[styles.sectionLabel, { textAlign: textStart(isRTL) }]}>
+                {t("lh_afgevinkt_n", { count: klaar.length })}
+              </Text>
               {klaar.map(renderItem)}
             </>
           )}
@@ -228,22 +188,19 @@ export default function LeerlingHuiswerk() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
+  row: { alignItems: "center", gap: 8 },
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
   sectionLabel: { fontSize: 13, fontWeight: "600", color: colors.textMuted, textTransform: "uppercase", marginBottom: 8, marginTop: 8 },
   detail: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
   beschrijving: { fontSize: 14, color: colors.text, marginBottom: 8 },
   bijlageText: { color: colors.info, fontSize: 14, textDecorationLine: "underline", paddingVertical: 4 },
   inleveringBox: { marginTop: 6, backgroundColor: colors.bg, borderRadius: 8, padding: 10 },
-  inleverForm: { marginTop: 10 },
-  bijlageRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 },
-  bijlageNaam: { flex: 1, fontSize: 14, color: colors.text },
   opmerkingBox: { backgroundColor: colors.infoLight, borderRadius: 8, padding: 10, marginTop: 6 },
   opmerkingLabel: { fontSize: 12, fontWeight: "600", color: colors.info, marginBottom: 2 },
   opmerkingText: { fontSize: 14, color: colors.text },
   rankCard: { backgroundColor: colors.warningLight, borderWidth: 1, borderColor: colors.warning, borderRadius: 12, padding: 14, marginBottom: 12 },
   rankTitle: { fontSize: 15, fontWeight: "700", color: colors.text, marginBottom: 8 },
-  rankRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 3 },
+  rankRow: { alignItems: "center", gap: 8, paddingVertical: 3 },
   rankNum: { width: 24, height: 24, borderWidth: 1, borderColor: colors.primary, alignItems: "center", justifyContent: "center" },
   rankNumLead: { backgroundColor: colors.primary },
   rankNumText: { fontSize: 13, fontWeight: "700", color: colors.primaryDark },
@@ -251,5 +208,4 @@ const styles = StyleSheet.create({
   rankNaam: { flex: 1, fontSize: 14, fontWeight: "500", color: colors.text },
   rankPct: { fontSize: 14, fontWeight: "700", color: colors.primaryDark },
   eigenPositie: { marginTop: 8, fontSize: 13, color: colors.textMuted, fontWeight: "600" },
-  error: { color: colors.danger, fontSize: 13, marginBottom: 4 },
 });

@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { useFetch } from "../../lib/useFetch";
+import { useT } from "../../lib/LanguageContext";
+import { row, textStart } from "../../lib/rtl";
 import { api, ApiError } from "../../lib/api";
 import { Loading, ErrorView, Card, Muted, Button, Input, ChipSelect } from "../../components/ui";
-import { Agenda, AgendaEvent } from "../../components/Agenda";
+import { Agenda, AgendaEvent, huiswerkBadge } from "../../components/Agenda";
 import { DateField, TimeField } from "../../components/DateField";
 import { LesDetail, type Les } from "../../components/LesDetail";
 import { LinkText } from "../../components/LinkText";
@@ -12,6 +14,7 @@ import { colors } from "../../lib/theme";
 import type { DocentKlas } from "./klassen";
 
 export default function DocentRooster() {
+  const { t, isRTL } = useT();
   const ls = useFetch<Les[]>("/api/docent/lessen");
   const kl = useFetch<DocentKlas[]>("/api/docent/klassen");
 
@@ -41,8 +44,8 @@ export default function DocentRooster() {
 
   async function kies() {
     setError(null);
-    const { bijlage: b, error: e } = await pickBijlage();
-    if (e) setError(e);
+    const { bijlage: b, fout } = await pickBijlage();
+    if (fout) setError(t(fout));
     else if (b) setBijlage(b);
   }
 
@@ -65,7 +68,7 @@ export default function DocentRooster() {
       setDatum(""); setBegintijd(""); setEindtijd(""); setLokaal(""); setBeschrijving(""); setHerhalenTot(""); setBijlage(null);
       await ls.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Kon les niet aanmaken");
+      setError(e instanceof ApiError ? e.message : t("dr_les_mislukt"));
     } finally {
       setSaving(false);
     }
@@ -78,15 +81,17 @@ export default function DocentRooster() {
     eindtijd: l.eindtijd,
     titel: l.klas.naam + (l.vak ? ` · ${l.vak.naam}` : ""),
     subtitel: l.lokaal || undefined,
-    badges: l.huiswerkAantal > 0
-      ? [{ text: l.huiswerkAantal > 1 ? `HW ${l.huiswerkAantal}` : "HW" }]
-      : undefined,
+    badges: huiswerkBadge(l.huiswerkAantal, t("c_hw_label")),
     onPress: () => setGekozenLesId(l.id),
     extra: (
       <View>
-        {l.beschrijving ? <LinkText style={styles.beschrijving}>{l.beschrijving}</LinkText> : null}
+        {l.beschrijving ? (
+          <LinkText style={[styles.beschrijving, { textAlign: textStart(isRTL) }]}>{l.beschrijving}</LinkText>
+        ) : null}
         {l.hasBijlage ? (
-          <Text style={styles.bijlage} onPress={() => openAttachment("les", l.id)}>📎 Lesbijlage</Text>
+          <Text style={[styles.bijlage, { textAlign: textStart(isRTL) }]} onPress={() => openAttachment("les", l.id)}>
+            📎 {t("ld_lesbijlage")}
+          </Text>
         ) : null}
       </View>
     ),
@@ -107,52 +112,60 @@ export default function DocentRooster() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, { flexDirection: row(isRTL) }]}>
         <Button
-          title={showForm ? "Sluiten" : "+ Les inplannen"}
+          title={showForm ? t("c_sluiten") : t("dr_les_inplannen")}
           variant={showForm ? "secondary" : "primary"}
           small
           onPress={() => setShowForm(!showForm)}
         />
-        <Muted>Tik op een les voor details</Muted>
+        <Muted>{t("lr_tik_les")}</Muted>
       </View>
 
       {showForm ? (
         <ScrollView style={styles.formScroll} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           <Card>
             <ChipSelect
-              label="Klas *"
+              label={t("dr_klas_verplicht")}
               options={klassen.map((k) => ({ value: k.id, label: k.naam }))}
               value={klasId}
               onChange={(v) => { setKlasId(v); setVakId(null); }}
             />
             {klas && klas.vakken.length > 0 && (
               <ChipSelect
-                label="Vak (optioneel)"
-                options={[{ value: "", label: "Geen" }, ...klas.vakken.map((v) => ({ value: v.id, label: v.naam }))]}
+                label={t("c_vak_optioneel")}
+                options={[{ value: "", label: t("c_geen") }, ...klas.vakken.map((v) => ({ value: v.id, label: v.naam }))]}
                 value={vakId ?? ""}
                 onChange={(v) => setVakId(v || null)}
               />
             )}
-            <DateField label="Datum *" value={datum} onChange={setDatum} />
-            <TimeField label="Begintijd *" value={begintijd} onChange={setBegintijd} />
-            <TimeField label="Eindtijd *" value={eindtijd} onChange={setEindtijd} />
-            <Input label="Lokaal" value={lokaal} onChangeText={setLokaal} placeholder="Lokaal 2" />
-            <Input label="Omschrijving / opmerking" value={beschrijving} onChangeText={setBeschrijving} multiline placeholder="bijv. Neem soera Al-Mulk door" />
-            <View style={styles.bijlageRow}>
+            <DateField label={t("dr_datum_verplicht")} value={datum} onChange={setDatum} />
+            <TimeField label={t("dr_begintijd_verplicht")} value={begintijd} onChange={setBegintijd} />
+            <TimeField label={t("dr_eindtijd_verplicht")} value={eindtijd} onChange={setEindtijd} />
+            <Input label={t("c_lokaal")} value={lokaal} onChangeText={setLokaal} placeholder={t("c_lokaal2")} />
+            <Input
+              label={t("c_omschrijving_opmerking")}
+              value={beschrijving}
+              onChangeText={setBeschrijving}
+              multiline
+              placeholder={t("ld_omschrijving_ph")}
+            />
+            <View style={[styles.bijlageRow, { flexDirection: row(isRTL) }]}>
               {bijlage ? (
                 <>
-                  <Text style={styles.bijlageNaam} numberOfLines={1}>📎 {bijlage.naam}</Text>
-                  <Button small title="Verwijderen" variant="ghost" onPress={() => setBijlage(null)} />
+                  <Text style={[styles.bijlageNaam, { textAlign: textStart(isRTL) }]} numberOfLines={1}>
+                    📎 {bijlage.naam}
+                  </Text>
+                  <Button small title={t("c_verwijderen")} variant="ghost" onPress={() => setBijlage(null)} />
                 </>
               ) : (
-                <Button small title="Bestand bijvoegen (max 4 MB)" variant="secondary" onPress={kies} />
+                <Button small title={t("c_bestand_bijvoegen_max")} variant="secondary" onPress={kies} />
               )}
             </View>
-            <DateField label="Wekelijks herhalen tot (optioneel)" value={herhalenTot} onChange={setHerhalenTot} minimumDate={datum ? new Date(datum) : undefined} />
-            {error && <Text style={styles.error}>{error}</Text>}
+            <DateField label={t("dr_herhalen")} value={herhalenTot} onChange={setHerhalenTot} minimumDate={datum ? new Date(datum) : undefined} />
+            {error && <Text style={[styles.error, { textAlign: textStart(isRTL) }]}>{error}</Text>}
             <Button
-              title={herhalenTot ? "Herhalende lessen aanmaken" : "Les aanmaken"}
+              title={herhalenTot ? t("dr_herhalende_aanmaken") : t("dr_les_aanmaken")}
               onPress={handleSubmit}
               loading={saving}
               disabled={!klasId || !datum || !begintijd || !eindtijd}
@@ -170,12 +183,12 @@ export default function DocentRooster() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 12, gap: 8 },
+  headerRow: { alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 12, gap: 8 },
   formScroll: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   agendaWrap: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
   beschrijving: { fontSize: 13, color: colors.text, marginTop: 6 },
   bijlage: { color: colors.info, fontSize: 13, textDecorationLine: "underline", marginTop: 6 },
-  bijlageRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 },
+  bijlageRow: { alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 },
   bijlageNaam: { flex: 1, fontSize: 14, color: colors.text },
   error: { color: colors.danger, marginBottom: 8 },
 });

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { View, Text, StyleSheet, Linking } from "react-native";
 import { bevestig } from "../lib/confirm";
 import { useFetch } from "../lib/useFetch";
+import { useT } from "../lib/LanguageContext";
+import { row, textStart } from "../lib/rtl";
 import { api, ApiError } from "../lib/api";
 import { Screen, Loading, ErrorView, Card, Muted, Empty, Button, Input, ChipSelect } from "./ui";
 import { LinkText } from "./LinkText";
@@ -29,6 +31,7 @@ interface DocentKlas {
 }
 
 export function StudieMateriaalView({ canManage }: { canManage: boolean }) {
+  const { t, isRTL } = useT();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Materiaal[]>("/api/studiemateriaal");
   const kl = useFetch<DocentKlas[]>(canManage ? "/api/docent/klassen" : null);
 
@@ -51,8 +54,8 @@ export function StudieMateriaalView({ canManage }: { canManage: boolean }) {
 
   async function kies() {
     setFormError(null);
-    const { bijlage: b, error: e } = await pickBijlage();
-    if (e) setFormError(e);
+    const { bijlage: b, fout } = await pickBijlage();
+    if (fout) setFormError(t(fout));
     else if (b) setBijlage(b);
   }
 
@@ -76,14 +79,14 @@ export function StudieMateriaalView({ canManage }: { canManage: boolean }) {
       setShowForm(false);
       await reload();
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : "Opslaan mislukt");
+      setFormError(e instanceof ApiError ? e.message : t("c_opslaan_mislukt"));
     } finally {
       setSaving(false);
     }
   }
 
   function confirmDelete(m: Materiaal) {
-    bevestig("Verwijderen", `"${m.titel}" verwijderen?`, async () => {
+    bevestig(t("c_verwijderen"), t("sm_verwijder_vraag", { titel: m.titel }), async () => {
       try {
         await api(`/api/studiemateriaal?id=${m.id}`, { method: "DELETE" });
         await reload();
@@ -95,7 +98,7 @@ export function StudieMateriaalView({ canManage }: { canManage: boolean }) {
     <Screen refreshing={refreshing} onRefresh={refresh}>
       {canManage && (
         <Button
-          title={showForm ? "Formulier sluiten" : "+ Nieuw studiemateriaal"}
+          title={showForm ? t("sm_form_sluiten") : t("sm_nieuw")}
           variant={showForm ? "secondary" : "primary"}
           onPress={() => setShowForm(!showForm)}
         />
@@ -103,59 +106,67 @@ export function StudieMateriaalView({ canManage }: { canManage: boolean }) {
 
       {canManage && showForm && (
         <Card>
-          <Input label="Titel *" value={titel} onChangeText={setTitel} placeholder="bijv. Tajweed-regels hoofdstuk 3" />
-          <Input label="Beschrijving" value={beschrijving} onChangeText={setBeschrijving} multiline />
-          <Input label="Link (optioneel)" value={linkUrl} onChangeText={setLinkUrl} placeholder="https://..." autoCapitalize="none" />
+          <Input label={t("sm_titel_verplicht")} value={titel} onChangeText={setTitel} placeholder={t("sm_titel_ph")} />
+          <Input label={t("c_beschrijving")} value={beschrijving} onChangeText={setBeschrijving} multiline />
+          <Input label={t("sm_link")} value={linkUrl} onChangeText={setLinkUrl} placeholder="https://..." autoCapitalize="none" />
           {klassen.length > 0 && (
             <ChipSelect
-              label="Klas (optioneel)"
-              options={[{ value: "", label: "Alle" }, ...klassen.map((k) => ({ value: k.id, label: k.naam }))]}
+              label={t("c_klas_optioneel")}
+              options={[{ value: "", label: t("c_alle") }, ...klassen.map((k) => ({ value: k.id, label: k.naam }))]}
               value={klasId ?? ""}
               onChange={(v) => { setKlasId(v || null); setVakId(null); }}
             />
           )}
           {klas && klas.vakken.length > 0 && (
             <ChipSelect
-              label="Vak (optioneel)"
-              options={[{ value: "", label: "Alle" }, ...klas.vakken.map((v) => ({ value: v.id, label: v.naam }))]}
+              label={t("c_vak_optioneel")}
+              options={[{ value: "", label: t("c_alle") }, ...klas.vakken.map((v) => ({ value: v.id, label: v.naam }))]}
               value={vakId ?? ""}
               onChange={(v) => setVakId(v || null)}
             />
           )}
-          <View style={styles.bijlageRow}>
+          <View style={[styles.bijlageRow, { flexDirection: row(isRTL) }]}>
             {bijlage ? (
               <>
-                <Text style={styles.bijlageNaam} numberOfLines={1}>📎 {bijlage.naam}</Text>
-                <Button small title="Verwijderen" variant="ghost" onPress={() => setBijlage(null)} />
+                <Text style={[styles.bijlageNaam, { textAlign: textStart(isRTL) }]} numberOfLines={1}>
+                  📎 {bijlage.naam}
+                </Text>
+                <Button small title={t("c_verwijderen")} variant="ghost" onPress={() => setBijlage(null)} />
               </>
             ) : (
-              <Button small title="Bestand kiezen (max 4 MB)" variant="secondary" onPress={kies} />
+              <Button small title={t("c_bestand_bijvoegen_max")} variant="secondary" onPress={kies} />
             )}
           </View>
-          {formError && <Text style={styles.error}>{formError}</Text>}
-          <Button title="Opslaan" onPress={handleCreate} loading={saving} disabled={!titel} />
+          {formError && <Text style={[styles.error, { textAlign: textStart(isRTL) }]}>{formError}</Text>}
+          <Button title={t("c_opslaan")} onPress={handleCreate} loading={saving} disabled={!titel} />
         </Card>
       )}
 
       {materialen.length === 0 ? (
-        <Empty icon="folder-open-outline" text="Nog geen studiemateriaal." />
+        <Empty icon="folder-open-outline" text={t("sm_geen")} />
       ) : (
         materialen.map((m) => (
           <Card key={m.id}>
-            <Text style={styles.title}>{m.titel}</Text>
+            <Text style={[styles.title, { textAlign: textStart(isRTL) }]}>{m.titel}</Text>
             <Muted>
               {[m.klas?.naam, m.vak?.naam, m.docent.name, fmtDatum(m.createdAt)].filter(Boolean).join(" · ")}
             </Muted>
-            {m.beschrijving ? <LinkText style={styles.beschrijving}>{m.beschrijving}</LinkText> : null}
+            {m.beschrijving ? (
+              <LinkText style={[styles.beschrijving, { textAlign: textStart(isRTL) }]}>{m.beschrijving}</LinkText>
+            ) : null}
             {m.linkUrl ? (
-              <Text style={styles.link} onPress={() => Linking.openURL(m.linkUrl!)}>🔗 {m.linkUrl}</Text>
+              <Text style={[styles.link, { textAlign: textStart(isRTL) }]} onPress={() => Linking.openURL(m.linkUrl!)}>
+                🔗 {m.linkUrl}
+              </Text>
             ) : null}
             {m.hasBijlage ? (
-              <Text style={styles.link} onPress={() => openAttachment("studiemateriaal", m.id)}>📎 {m.bijlageNaam ?? "Bijlage openen"}</Text>
+              <Text style={[styles.link, { textAlign: textStart(isRTL) }]} onPress={() => openAttachment("studiemateriaal", m.id)}>
+                📎 {m.bijlageNaam ?? t("c_bijlage_openen")}
+              </Text>
             ) : null}
             {canManage && (
               <View style={{ marginTop: 6 }}>
-                <Button small title="Verwijderen" variant="ghost" onPress={() => confirmDelete(m)} />
+                <Button small title={t("c_verwijderen")} variant="ghost" onPress={() => confirmDelete(m)} />
               </View>
             )}
           </Card>
@@ -169,7 +180,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
   beschrijving: { fontSize: 14, color: colors.text, marginTop: 6 },
   link: { color: colors.info, fontSize: 14, textDecorationLine: "underline", marginTop: 6 },
-  bijlageRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 },
+  bijlageRow: { alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 },
   bijlageNaam: { flex: 1, fontSize: 14, color: colors.text },
   error: { color: colors.danger, marginBottom: 8 },
 });

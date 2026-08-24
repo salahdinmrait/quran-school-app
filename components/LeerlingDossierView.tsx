@@ -4,9 +4,11 @@ import { bevestig } from "../lib/confirm";
 import { useFetch } from "../lib/useFetch";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useT } from "../lib/LanguageContext";
+import { row, textStart } from "../lib/rtl";
 import { Screen, Loading, ErrorView, Card, Muted, Empty, Button, Input } from "./ui";
 import { LinkText } from "./LinkText";
-import { colors, ROLE_LABELS } from "../lib/theme";
+import { colors } from "../lib/theme";
 import { fmtDatumTijd } from "../lib/format";
 
 interface Notitie {
@@ -26,6 +28,7 @@ interface Dossier {
 // de leerling; latere docenten zien wat eerdere docenten schreven en kunnen aanvullen.
 export function LeerlingDossierView({ leerlingId, leerlingNaam }: { leerlingId: string; leerlingNaam?: string }) {
   const { user } = useAuth();
+  const { t, isRTL, label } = useT();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Dossier>(
     `/api/leerling-dossier?leerlingId=${encodeURIComponent(leerlingId)}`
   );
@@ -39,7 +42,7 @@ export function LeerlingDossierView({ leerlingId, leerlingNaam }: { leerlingId: 
   if (error) return <ErrorView message={error} onRetry={reload} />;
 
   const notities = data?.notities ?? [];
-  const naam = data?.leerling?.name ?? leerlingNaam ?? "Leerling";
+  const naam = data?.leerling?.name ?? leerlingNaam ?? t("c_leerling");
 
   async function toevoegen() {
     if (!inhoud.trim()) return;
@@ -54,14 +57,14 @@ export function LeerlingDossierView({ leerlingId, leerlingNaam }: { leerlingId: 
       setInhoud("");
       await reload();
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : "Opslaan mislukt");
+      setFormError(e instanceof ApiError ? e.message : t("c_opslaan_mislukt"));
     } finally {
       setSaving(false);
     }
   }
 
   function verwijder(n: Notitie) {
-    bevestig("Notitie verwijderen", "Deze notitie verwijderen?", async () => {
+    bevestig(t("dos_verwijderen_titel"), t("dos_verwijderen_vraag"), async () => {
       try {
         await api(`/api/leerling-dossier?id=${n.id}`, { method: "DELETE" });
         await reload();
@@ -71,32 +74,36 @@ export function LeerlingDossierView({ leerlingId, leerlingNaam }: { leerlingId: 
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
-      <Text style={styles.naam}>{naam}</Text>
-      <Muted style={{ marginBottom: 12 }}>Leerlingendossier — zichtbaar voor docenten van deze leerling en het beheer.</Muted>
+      <Text style={[styles.naam, { textAlign: textStart(isRTL) }]}>{naam}</Text>
+      <Muted style={{ marginBottom: 12 }}>{t("dos_uitleg")}</Muted>
 
       {/* Nieuwe notitie */}
       <Card>
-        <Input label="Titel (optioneel)" value={titel} onChangeText={setTitel} placeholder="bijv. Gedrag, voortgang, bijzonderheid" />
-        <Input label="Notitie *" value={inhoud} onChangeText={setInhoud} multiline placeholder="Schrijf hier je observatie of toevoeging..." />
-        {formError && <Text style={styles.error}>{formError}</Text>}
-        <Button title="Notitie toevoegen" onPress={toevoegen} loading={saving} disabled={!inhoud.trim()} />
+        <Input label={t("dos_titel_optioneel")} value={titel} onChangeText={setTitel} placeholder={t("dos_titel_ph")} />
+        <Input label={t("dos_notitie_verplicht")} value={inhoud} onChangeText={setInhoud} multiline placeholder={t("dos_notitie_ph")} />
+        {formError && <Text style={[styles.error, { textAlign: textStart(isRTL) }]}>{formError}</Text>}
+        <Button title={t("dos_toevoegen")} onPress={toevoegen} loading={saving} disabled={!inhoud.trim()} />
       </Card>
 
       {notities.length === 0 ? (
-        <Empty icon="document-text-outline" text="Nog geen notities in dit dossier." />
+        <Empty icon="document-text-outline" text={t("dos_geen")} />
       ) : (
         notities.map((n) => {
           const eigen = n.auteur.id === user?.id;
           return (
             <Card key={n.id}>
-              {n.titel ? <Text style={styles.titel}>{n.titel}</Text> : null}
-              <LinkText style={styles.inhoud}>{n.inhoud}</LinkText>
-              <View style={styles.metaRow}>
+              {n.titel ? (
+                <Text style={[styles.titel, { textAlign: textStart(isRTL) }]}>{n.titel}</Text>
+              ) : null}
+              <LinkText style={[styles.inhoud, { textAlign: textStart(isRTL) }]}>{n.inhoud}</LinkText>
+              <View style={[styles.metaRow, { flexDirection: row(isRTL) }]}>
                 <Muted>
-                  {n.auteur.name} ({ROLE_LABELS[n.auteur.role] ?? n.auteur.role}) · {fmtDatumTijd(n.createdAt)}
+                  {n.auteur.name} ({label("rol", n.auteur.role)}) · {fmtDatumTijd(n.createdAt)}
                 </Muted>
                 {(eigen || user?.role === "ADMIN") && (
-                  <Text style={styles.verwijder} onPress={() => verwijder(n)}>Verwijderen</Text>
+                  <Text style={styles.verwijder} onPress={() => verwijder(n)}>
+                    {t("c_verwijderen")}
+                  </Text>
                 )}
               </View>
             </Card>
@@ -111,7 +118,7 @@ const styles = StyleSheet.create({
   naam: { fontSize: 22, fontWeight: "700", color: colors.text },
   titel: { fontSize: 15, fontWeight: "600", color: colors.text, marginBottom: 2 },
   inhoud: { fontSize: 14, color: colors.text },
-  metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 8 },
+  metaRow: { alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 8 },
   verwijder: { color: colors.danger, fontSize: 12, fontWeight: "600" },
   error: { color: colors.danger, marginBottom: 8 },
 });

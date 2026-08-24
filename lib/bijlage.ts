@@ -1,6 +1,7 @@
 import { Platform, Linking } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { getApiUrl, getAuthToken } from "./api";
+import type { Sleutel } from "./i18n";
 
 // Bijlagen gaan als base64 mee in het verzoek; daarom max ±4 MB
 // (foto's, pdf's, korte audio). Grote video's gaan via een directe upload elders.
@@ -23,7 +24,7 @@ async function leesBase64(uri: string): Promise<string> {
         const result = String(reader.result);
         resolve(result.split(",")[1] ?? "");
       };
-      reader.onerror = () => reject(new Error("Kon bestand niet lezen"));
+      reader.onerror = () => reject(new Error("bijlage-lezen-mislukt"));
       reader.readAsDataURL(blob);
     });
   }
@@ -34,7 +35,9 @@ async function leesBase64(uri: string): Promise<string> {
 }
 
 // Opent de bestandskiezer en leest het bestand als base64.
-export async function pickBijlage(): Promise<{ bijlage?: GekozenBijlage; error?: string }> {
+// De foutmelding komt terug als vertaalsleutel; het scherm dat dit aanroept
+// heeft useT() en zet er de tekst van de gekozen taal bij.
+export async function pickBijlage(): Promise<{ bijlage?: GekozenBijlage; fout?: Sleutel }> {
   const result = await DocumentPicker.getDocumentAsync({
     type: ["image/*", "video/*", "audio/*", "application/pdf", "text/plain"],
     copyToCacheDirectory: true,
@@ -42,7 +45,7 @@ export async function pickBijlage(): Promise<{ bijlage?: GekozenBijlage; error?:
   if (result.canceled || !result.assets?.[0]) return {};
   const asset = result.assets[0];
   if (asset.size && asset.size > MAX_BIJLAGE_BYTES) {
-    return { error: "Bestand is te groot (max 4 MB)." };
+    return { fout: "c_bestand_te_groot" };
   }
   try {
     const data = await leesBase64(asset.uri);
@@ -54,7 +57,7 @@ export async function pickBijlage(): Promise<{ bijlage?: GekozenBijlage; error?:
       },
     };
   } catch {
-    return { error: "Kon bestand niet lezen." };
+    return { fout: "c_kon_bestand_niet_lezen" };
   }
 }
 

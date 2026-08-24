@@ -1,7 +1,9 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useFetch } from "../../lib/useFetch";
+import { useT } from "../../lib/LanguageContext";
+import { row, textStart } from "../../lib/rtl";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty } from "../../components/ui";
-import { colors, STATUS_LABELS, STATUS_COLORS } from "../../lib/theme";
+import { colors, STATUS_COLORS } from "../../lib/theme";
 import { fmtDatumKort } from "../../lib/format";
 
 interface Aanwezigheid {
@@ -18,6 +20,7 @@ interface Aanwezigheid {
 }
 
 export default function LeerlingAbsentie() {
+  const { t, isRTL, label } = useT();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Aanwezigheid[]>("/api/leerling/absentie");
 
   if (loading) return <Loading />;
@@ -47,15 +50,15 @@ export default function LeerlingAbsentie() {
       {pct !== null && (
         <Card style={styles.statCard}>
           <Text style={styles.statValue}>{pct}%</Text>
-          <Muted>aanwezig over {records.length} lessen</Muted>
+          <Muted>{t("la_aanwezig_over", { count: records.length })}</Muted>
         </Card>
       )}
 
       {klasPcts.length > 1 && (
         <Card>
-          <Text style={styles.cardSub}>Per klas</Text>
+          <Text style={[styles.cardSub, { textAlign: textStart(isRTL) }]}>{t("c_per_klas")}</Text>
           {klasPcts.map((k) => (
-            <View key={k.naam} style={styles.klasRow}>
+            <View key={k.naam} style={[styles.klasRow, { flexDirection: row(isRTL) }]}>
               <Text style={styles.klasNaam}>{k.naam}</Text>
               <Badge
                 text={`${k.pct}%`}
@@ -68,15 +71,15 @@ export default function LeerlingAbsentie() {
       )}
 
       {records.length === 0 ? (
-        <Empty text="Nog geen aanwezigheid geregistreerd." />
+        <Empty text={t("la_geen")} />
       ) : (
         records.map((r) => {
           const c = STATUS_COLORS[r.status] ?? STATUS_COLORS.AANWEZIG;
           return (
             <Card key={r.id}>
-              <View style={styles.row}>
+              <View style={[styles.row, { flexDirection: row(isRTL) }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.title}>
+                  <Text style={[styles.title, { textAlign: textStart(isRTL) }]}>
                     {r.les.klas.naam}
                     {r.les.vak ? ` · ${r.les.vak.naam}` : ""}
                   </Text>
@@ -84,7 +87,7 @@ export default function LeerlingAbsentie() {
                     {fmtDatumKort(r.les.datum)} · {r.les.begintijd}–{r.les.eindtijd}
                   </Muted>
                 </View>
-                <Badge text={STATUS_LABELS[r.status] ?? r.status} bg={c.bg} fg={c.fg} />
+                <Badge text={label("status", r.status)} bg={c.bg} fg={c.fg} />
               </View>
             </Card>
           );
@@ -98,8 +101,8 @@ const styles = StyleSheet.create({
   statCard: { alignItems: "center", backgroundColor: colors.primaryLight, borderColor: colors.primary },
   statValue: { fontSize: 32, fontWeight: "800", color: colors.primaryDark },
   cardSub: { fontSize: 13, fontWeight: "600", color: colors.textMuted, marginBottom: 6 },
-  klasRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
+  klasRow: { alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
   klasNaam: { fontSize: 14, color: colors.text, fontWeight: "500" },
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
+  row: { alignItems: "center", gap: 8 },
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
 });

@@ -1,7 +1,9 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useFetch } from "../../lib/useFetch";
+import { useT } from "../../lib/LanguageContext";
+import { row, textStart } from "../../lib/rtl";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, SectionTitle } from "../../components/ui";
-import { colors, CATEGORIE_LABELS } from "../../lib/theme";
+import { colors } from "../../lib/theme";
 
 interface KlasStat {
   id: string;
@@ -38,59 +40,62 @@ function StatBadge({ label, value, soort }: { label: string; value: number | nul
 }
 
 export default function DocentStatistieken() {
+  const { t, tel, isRTL, label } = useT();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Stats>("/api/docent/statistieken");
 
   if (loading) return <Loading />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
-  if (!data) return <Empty text="Geen statistieken." />;
+  if (!data) return <Empty text={t("st_geen")} />;
 
-  const t = data.totalen;
+  const tot = data.totalen;
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
       <View style={styles.statGrid}>
         {[
-          { label: "Klassen", value: t.klassen },
-          { label: "Leerlingen", value: t.leerlingen },
-          { label: "Vakken", value: t.vakken },
+          { label: t("c_klassen"), value: tot.klassen },
+          { label: t("c_leerlingen"), value: tot.leerlingen },
+          { label: t("c_vakken"), value: tot.vakken },
         ].map((s) => (
           <View key={s.label} style={styles.statBox}>
             <Text style={styles.statValue}>{s.value}</Text>
-            <Text style={styles.statLabel}>{s.label}</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>
+              {s.label}
+            </Text>
           </View>
         ))}
       </View>
 
-      <SectionTitle>Per klas</SectionTitle>
+      <SectionTitle>{t("st_per_klas")}</SectionTitle>
       {data.perKlas.length === 0 ? (
-        <Empty text="Geen klassen." />
+        <Empty text={t("st_geen_klassen")} />
       ) : (
         data.perKlas.map((k) => (
           <Card key={k.id}>
-            <Text style={styles.naam}>{k.naam}</Text>
-            <Muted>{k.leerlingenCount} leerlingen</Muted>
-            <View style={styles.badgeRow}>
-              <StatBadge label="Aanwezig" value={k.aanwezigheid} soort="pct" />
-              <StatBadge label="Gem." value={k.avgCijfer} soort="cijfer" />
-              <StatBadge label="Huiswerk" value={k.hwPercent} soort="hw" />
+            <Text style={[styles.naam, { textAlign: textStart(isRTL) }]}>{k.naam}</Text>
+            <Muted>{tel("c_n_leerlingen", k.leerlingenCount)}</Muted>
+            <View style={[styles.badgeRow, { flexDirection: row(isRTL) }]}>
+              <StatBadge label={t("c_aanwezig")} value={k.aanwezigheid} soort="pct" />
+              <StatBadge label={t("st_gem")} value={k.avgCijfer} soort="cijfer" />
+              <StatBadge label={t("c_huiswerk")} value={k.hwPercent} soort="hw" />
             </View>
           </Card>
         ))
       )}
 
-      <SectionTitle>Per vak</SectionTitle>
+      <SectionTitle>{t("st_per_vak")}</SectionTitle>
       {data.perVak.length === 0 ? (
-        <Empty text="Geen vakken." />
+        <Empty text={t("st_geen_vakken")} />
       ) : (
         data.perVak.map((v) => (
           <Card key={v.id}>
-            <View style={styles.row}>
-              <Text style={styles.naam}>{v.naam}</Text>
-              <Badge text={CATEGORIE_LABELS[v.categorie] ?? v.categorie} />
+            <View style={[styles.row, { flexDirection: row(isRTL) }]}>
+              <Text style={[styles.naam, { textAlign: textStart(isRTL) }]}>{v.naam}</Text>
+              <Badge text={label("categorie", v.categorie)} />
             </View>
-            <View style={styles.badgeRow}>
-              <StatBadge label="Gem." value={v.avgCijfer} soort="cijfer" />
-              <StatBadge label="Huiswerk" value={v.hwPercent} soort="hw" />
+            <View style={[styles.badgeRow, { flexDirection: row(isRTL) }]}>
+              <StatBadge label={t("st_gem")} value={v.avgCijfer} soort="cijfer" />
+              <StatBadge label={t("c_huiswerk")} value={v.hwPercent} soort="hw" />
             </View>
           </Card>
         ))
@@ -114,6 +119,6 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 24, fontWeight: "700", color: colors.text },
   statLabel: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   naam: { fontSize: 15, fontWeight: "600", color: colors.text },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
+  row: { alignItems: "center", justifyContent: "space-between", gap: 8 },
+  badgeRow: { flexWrap: "wrap", gap: 6, marginTop: 8 },
 });

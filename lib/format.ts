@@ -1,15 +1,24 @@
-const MAANDEN = [
+// Datums staan overal in de app als dag-maand-jaar, in álle talen en met
+// westerse cijfers. Alleen de weekdag- en maandnamen komen uit het
+// taalbestand; LanguageContext zet ze hier bij elke taalwissel neer.
+let MAANDEN = [
   "jan", "feb", "mrt", "apr", "mei", "jun",
   "jul", "aug", "sep", "okt", "nov", "dec",
 ];
 
-const DAGEN = ["zo", "ma", "di", "wo", "do", "vr", "za"];
+let DAGEN = ["zo", "ma", "di", "wo", "do", "vr", "za"];
+
+/** Aangeroepen door <LanguageProvider>; buiten die context niet nodig. */
+export function setDatumLabels(dagen: string[], maanden: string[]): void {
+  if (dagen.length === 7) DAGEN = dagen;
+  if (maanden.length === 12) MAANDEN = maanden;
+}
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-// Nederlandse notatie: DD-MM-YYYY
+// Dag-maand-jaar: DD-MM-YYYY
 export function fmtDatum(iso: string | Date | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -41,17 +50,7 @@ export function fmtDatumTijd(iso: string | Date | null | undefined): string {
   return `${fmtDatum(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function isVerlopen(deadline: string | Date | null | undefined): boolean {
-  if (!deadline) return false;
-  return new Date(deadline).getTime() < Date.now();
-}
-
 // Date → "YYYY-MM-DD" for API submission
 export function toDateInput(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-// Telwoord met correcte enkelvoud/meervoud: plural(1,"docent","docenten") → "1 docent"
-export function plural(n: number, enkel: string, meervoud: string): string {
-  return `${n} ${n === 1 ? enkel : meervoud}`;
 }

@@ -2,8 +2,11 @@ import { useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
-import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
-import { colors, ROLE_LABELS } from "../../lib/theme";
+import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input } from "../../components/ui";
+import { PersonPicker, Persoon } from "../../components/PersonPicker";
+import { useT } from "../../lib/LanguageContext";
+import { row, textStart } from "../../lib/rtl";
+import { colors } from "../../lib/theme";
 import { fmtDatumTijd } from "../../lib/format";
 
 interface Bericht {
@@ -16,24 +19,24 @@ interface Bericht {
   ontvanger?: { id: string; name: string; role: string };
 }
 
-interface Kind {
-  id: string;
-  name: string;
-  leerlingKlassen: {
-    klas: { docenten: { docent: { id: string; name: string } }[] };
-  }[];
+interface Contacten {
+  docenten: { id: string; name: string; email: string }[];
+  admins: { id: string; name: string; email: string }[];
 }
 
 type Tab = "inbox" | "verzonden" | "nieuw";
 
 export default function OuderBerichten() {
+  const { t, isRTL, label } = useT();
   const { data, setData, error, loading, refreshing, refresh, reload } =
     useFetch<{ inbox: Bericht[]; verzonden: Bericht[]; admins: { id: string; name: string }[] }>("/api/ouder/berichten");
-  const kinderen = useFetch<Kind[]>("/api/ouder/kind");
+  // Dezelfde contactenregels als bij de leerling, uit één bron op de server —
+  // niet opnieuw afgeleid uit het (veel zwaardere) kind-overzicht.
+  const contacten = useFetch<Contacten>("/api/ouder/contacten");
 
   const [tab, setTab] = useState<Tab>("inbox");
   const [openId, setOpenId] = useState<string | null>(null);
-  const [docentId, setDocentId] = useState<string | null>(null);
+  const [docentIds, setDocentIds] = useState<string[]>([]);
   const [onderwerp, setOnderwerp] = useState("");
   const [inhoud, setInhoud] = useState("");
   const [sending, setSending] = useState(false);
@@ -46,18 +49,10 @@ export default function OuderBerichten() {
   const inbox = data?.inbox ?? [];
   const verzonden = data?.verzonden ?? [];
 
-  // Alle docenten van de kinderen (gededupliceerd) + het beheer
-  const docenten = Array.from(
-    new Map(
-      (kinderen.data ?? [])
-        .flatMap((k) => k.leerlingKlassen)
-        .flatMap((kk) => kk.klas.docenten)
-        .map((d) => [d.docent.id, d.docent])
-    ).values()
-  );
-  const ontvangerOpties = [
-    ...docenten.map((d) => ({ value: d.id, label: `${d.name} (docent)` })),
-    ...(data?.admins ?? []).map((a) => ({ value: a.id, label: `${a.name} (beheer)` })),
+  // Docenten van de kinderen en het beheer in één zoeklijst.
+  const ontvangers: Persoon[] = [
+    ...(contacten.data?.docenten ?? []).map((d) => ({ id: d.id, name: d.name, email: d.email, extra: `${label("rol", "DOCENT")} · ${d.email}` })),
+    ...(contacten.data?.admins ?? []).map((a) => ({ id: a.id, name: a.name, email: a.email, extra: `${t("c_beheer")} · ${a.email}` })),
   ];
 
   function openBericht(b: Bericht) {
@@ -74,7 +69,7 @@ export default function OuderBerichten() {
   }
 
   async function sendNieuw() {
-    if (!docentId || !onderwerp.trim() || !inhoud.trim()) return;
+    if (docentIds.length === 0 || !onderwerp.trim() || !inhoud.trim()) return;
     setSending(true);
     setSendError(null);
     setSent(false);
@@ -82,7 +77,7 @@ export default function OuderBerichten() {
       await api("/api/ouder/berichten", {
         method: "POST",
         body: JSON.stringify({
-          ontvangerId: docentId,
+          ontvangerIds: docentIds,
           onderwerp: onderwerp.trim(),
           inhoud: inhoud.trim(),
         }),
@@ -90,9 +85,10 @@ export default function OuderBerichten() {
       setSent(true);
       setOnderwerp("");
       setInhoud("");
+      setDocentIds([]);
       refresh();
     } catch (e) {
-      setSendError(e instanceof ApiError ? e.message : "Versturen mislukt");
+      setSendError(e instanceof ApiError ? e.message : t("c_versturen_mislukt"));
     } finally {
       setSending(false);
     }
@@ -103,80 +99,81 @@ export default function OuderBerichten() {
     const persoon = richting === "in" ? b.verzender : b.ontvanger;
     return (
       <Card key={b.id} onPress={() => openBericht(b)}>
-        <View style={styles.row}>
+        <View style={[styles.row, { flexDirection: row(isRTL) }]}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.title, richting === "in" && !b.gelezen && styles.unread]}>
+            <Text style={[styles.title, { textAlign: textStart(isRTL) }, richting === "in" && !b.gelezen && styles.unread]}>
               {b.onderwerp}
             </Text>
             <Muted>
-              {richting === "in" ? "Van" : "Aan"}: {persoon?.name}
-              {persoon ? ` (${ROLE_LABELS[persoon.role] ?? persoon.role})` : ""} ·{" "}
+              {t(richting === "in" ? "ou_van" : "ou_aan", {
+                naam: persoon?.name ?? "—",
+                rol: persoon ? label("rol", persoon.role) : "",
+              })}{" · "}
               {fmtDatumTijd(b.createdAt)}
             </Muted>
           </View>
           {richting === "in" && !b.gelezen && (
-            <Badge text="nieuw" bg={colors.infoLight} fg={colors.info} />
+            <Badge text={t("br_badge_nieuw")} bg={colors.infoLight} fg={colors.info} />
           )}
         </View>
-        {expanded && <Text style={styles.inhoud}>{b.inhoud}</Text>}
+        {expanded && <Text style={[styles.inhoud, { textAlign: textStart(isRTL) }]}>{b.inhoud}</Text>}
       </Card>
     );
   }
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
-      <View style={styles.tabs}>
-        {(["inbox", "verzonden", "nieuw"] as Tab[]).map((t) => (
-          <Text key={t} onPress={() => setTab(t)} style={[styles.tab, tab === t && styles.tabActive]}>
-            {t === "inbox"
-              ? `Inbox (${inbox.filter((b) => !b.gelezen).length})`
-              : t === "verzonden"
-              ? "Verzonden"
-              : "+ Nieuw"}
+      <View style={[styles.tabs, { flexDirection: row(isRTL) }]}>
+        {(["inbox", "verzonden", "nieuw"] as Tab[]).map((naam) => (
+          <Text
+            key={naam}
+            onPress={() => setTab(naam)}
+            style={[styles.tab, tab === naam && styles.tabActive]}
+            numberOfLines={1}
+          >
+            {naam === "inbox"
+              ? t("br_inbox", { count: inbox.filter((b) => !b.gelezen).length })
+              : naam === "verzonden"
+              ? t("br_verzonden")
+              : t("br_nieuw")}
           </Text>
         ))}
       </View>
 
       {tab === "inbox" &&
         (inbox.length === 0 ? (
-          <Empty icon="mail-outline" text="Geen berichten ontvangen." />
+          <Empty icon="mail-outline" text={t("c_geen_berichten_ontvangen")} />
         ) : (
           inbox.map((b) => renderBericht(b, "in"))
         ))}
 
       {tab === "verzonden" &&
         (verzonden.length === 0 ? (
-          <Empty icon="paper-plane-outline" text="Nog niets verzonden." />
+          <Empty icon="paper-plane-outline" text={t("c_niets_verzonden")} />
         ) : (
           verzonden.map((b) => renderBericht(b, "uit"))
         ))}
 
       {tab === "nieuw" && (
         <Card>
-          {ontvangerOpties.length === 0 ? (
-            <Muted>
-              Geen contacten gevonden — je kind moet eerst aan een klas met docent gekoppeld zijn.
-            </Muted>
-          ) : (
-            <>
-              <ChipSelect
-                label="Aan"
-                options={ontvangerOpties}
-                value={docentId}
-                onChange={setDocentId}
-              />
-              <Input label="Onderwerp" value={onderwerp} onChangeText={setOnderwerp} />
-              <Input label="Bericht" value={inhoud} onChangeText={setInhoud} multiline />
-              {sendError && <Text style={styles.error}>{sendError}</Text>}
-              {sent && <Text style={styles.success}>Verstuurd ✓</Text>}
-              <Button
-                title="Versturen"
-                onPress={sendNieuw}
-                loading={sending}
-                disabled={!docentId || !onderwerp.trim() || !inhoud.trim()}
-              />
-            </>
-          )}
+          <Muted style={{ marginBottom: 8 }}>{t("ou_uitleg")}</Muted>
+          <PersonPicker
+            label={t("lb_aan")}
+            personen={ontvangers}
+            geselecteerd={docentIds}
+            onChange={setDocentIds}
+            leegTekst={t("ou_geen_contacten")}
+          />
+          <Input label={t("c_onderwerp")} value={onderwerp} onChangeText={setOnderwerp} />
+          <Input label={t("c_bericht")} value={inhoud} onChangeText={setInhoud} multiline />
+          {sendError && <Text style={[styles.error, { textAlign: textStart(isRTL) }]}>{sendError}</Text>}
+          {sent && <Text style={[styles.success, { textAlign: textStart(isRTL) }]}>{t("lb_verstuurd")}</Text>}
+          <Button
+            title={t("c_versturen")}
+            onPress={sendNieuw}
+            loading={sending}
+            disabled={docentIds.length === 0 || !onderwerp.trim() || !inhoud.trim()}
+          />
         </Card>
       )}
     </Screen>
@@ -184,7 +181,7 @@ export default function OuderBerichten() {
 }
 
 const styles = StyleSheet.create({
-  tabs: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  tabs: { gap: 8, marginBottom: 12 },
   tab: {
     flex: 1,
     textAlign: "center",
@@ -198,7 +195,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   tabActive: { backgroundColor: colors.primary, color: "#fff", fontWeight: "600", borderColor: colors.primary },
-  row: { flexDirection: "row", alignItems: "center", gap: 6 },
+  row: { alignItems: "center", gap: 6 },
   title: { fontSize: 15, fontWeight: "500", color: colors.text },
   unread: { fontWeight: "700" },
   inhoud: {

@@ -3,18 +3,20 @@ import { View, Text, StyleSheet, Pressable } from "react-native";
 import { bevestig } from "../../lib/confirm";
 import { useRouter } from "expo-router";
 import { useFetch } from "../../lib/useFetch";
+import { useT } from "../../lib/LanguageContext";
+import { row, textStart } from "../../lib/rtl";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
 import { LinkText } from "../../components/LinkText";
 import { openAttachment } from "../../lib/bijlage";
 import { colors } from "../../lib/theme";
-import { fmtDatum, isVerlopen } from "../../lib/format";
+import { fmtDatum } from "../../lib/format";
 import type { DocentKlas } from "./klassen";
 
 interface RankingItem {
   positie: number;
   leerling: { id: string; name: string };
-  aantalIngeleverd: number;
+  aantalAfgevinkt: number;
   totaal: number;
   percentage: number;
 }
@@ -40,10 +42,11 @@ interface Huiswerk {
   id: string;
   titel: string;
   beschrijving: string | null;
-  deadline: string | null;
   vakId: string;
   vak: { id: string; naam: string };
-  les: { id: string; klas: { id: string; naam: string } } | null;
+  // Huiswerk hoort bij een les; de lesdatum bepaalt wanneer het aan de beurt
+  // is. Ouder huiswerk zonder les blijft bestaan en toont alleen het vak.
+  les: { id: string; datum: string; klas: { id: string; naam: string } } | null;
   bijlageNaam: string | null;
   hasBijlage: boolean;
   inleveringen: Inlevering[];
@@ -52,6 +55,7 @@ interface Huiswerk {
 
 export default function DocentHuiswerk() {
   const router = useRouter();
+  const { t, isRTL } = useT();
   const hw = useFetch<Huiswerk[]>("/api/docent/huiswerk");
   const kl = useFetch<DocentKlas[]>("/api/docent/klassen");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -116,7 +120,7 @@ export default function DocentHuiswerk() {
       });
       await hw.reload();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : "Actie mislukt");
+      setActionError(e instanceof ApiError ? e.message : t("c_actie_mislukt"));
     } finally {
       setBusy(null);
     }
@@ -135,32 +139,32 @@ export default function DocentHuiswerk() {
       setOpmerkingText("");
       await hw.reload();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : "Opslaan mislukt");
+      setActionError(e instanceof ApiError ? e.message : t("c_opslaan_mislukt"));
     } finally {
       setBusy(null);
     }
   }
 
   function confirmDeleteHuiswerk(h: Huiswerk) {
-    bevestig("Huiswerk verwijderen", `"${h.titel}" verwijderen?`, async () => {
+    bevestig(t("ld_hw_verwijderen_titel"), t("sm_verwijder_vraag", { titel: h.titel }), async () => {
       setActionError(null);
       try {
         await api(`/api/docent/huiswerk/${h.id}`, { method: "DELETE" });
         await hw.reload();
       } catch (e) {
-        setActionError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+        setActionError(e instanceof ApiError ? e.message : t("c_verwijderen_mislukt"));
       }
     });
   }
 
   return (
     <Screen refreshing={hw.refreshing} onRefresh={hw.refresh}>
-      <Button title="+ Nieuw huiswerk" onPress={() => router.push("/docent/huiswerk-nieuw")} />
+      <Button title={t("nav_nieuw_huiswerk")} onPress={() => router.push("/docent/huiswerk-nieuw")} />
 
       {/* Klassement */}
       {activeRanking && activeRanking.totaalHw > 0 && activeRanking.top3.length > 0 && (
         <Card style={{ borderColor: colors.warning, backgroundColor: colors.warningLight }}>
-          <Text style={styles.rankTitle}>Klassement</Text>
+          <Text style={[styles.rankTitle, { textAlign: textStart(isRTL) }]}>{t("dh_klassement")}</Text>
           {rankings.length > 1 && (
             <ChipSelect
               options={rankings.map((r) => ({ value: r.klasId, label: r.klasNaam }))}
@@ -169,14 +173,14 @@ export default function DocentHuiswerk() {
             />
           )}
           {activeRanking.top3.map((item) => (
-            <View key={item.leerling.id} style={styles.rankRow}>
+            <View key={item.leerling.id} style={[styles.rankRow, { flexDirection: row(isRTL) }]}>
               <View style={[styles.rankNum, item.positie === 1 && styles.rankNumLead]}>
                 <Text style={[styles.rankNumText, item.positie === 1 && styles.rankNumTextLead]}>{item.positie}</Text>
               </View>
               <Text style={styles.rankNaam}>{item.leerling.name}</Text>
               <Text style={styles.rankPct}>{item.percentage}%</Text>
               <Muted>
-                {item.aantalIngeleverd}/{item.totaal}
+                {item.aantalAfgevinkt}/{item.totaal}
               </Muted>
             </View>
           ))}
@@ -184,7 +188,7 @@ export default function DocentHuiswerk() {
       )}
 
       {huiswerk.length === 0 ? (
-        <Empty text="Nog geen huiswerk opgegeven." />
+        <Empty text={t("dh_geen")} />
       ) : (
         huiswerk.map((h) => {
           const expanded = openId === h.id;
@@ -193,12 +197,14 @@ export default function DocentHuiswerk() {
           return (
             <Card key={h.id}>
               {/* Alleen de kop-rij toggle't — anders klapt de kaart op web dicht bij klikken in het opmerking-veld */}
-              <Pressable onPress={() => setOpenId(expanded ? null : h.id)} style={styles.row}>
+              <Pressable onPress={() => setOpenId(expanded ? null : h.id)} style={[styles.row, { flexDirection: row(isRTL) }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.title}>{h.titel}</Text>
+                  <Text style={[styles.title, { textAlign: textStart(isRTL) }]}>{h.titel}</Text>
                   <Muted>
                     {h.vak.naam}
-                    {h.les ? ` · ${h.les.klas.naam}` : ""} · deadline {fmtDatum(h.deadline)}
+                    {h.les
+                      ? ` · ${h.les.klas.naam} · ${t("lh_les_datum", { datum: fmtDatum(h.les.datum) })}`
+                      : ""}
                   </Muted>
                 </View>
                 <Badge
@@ -206,26 +212,27 @@ export default function DocentHuiswerk() {
                   bg={doneIds.size === leerlingen.length && leerlingen.length > 0 ? colors.successLight : colors.warningLight}
                   fg={doneIds.size === leerlingen.length && leerlingen.length > 0 ? colors.primaryDark : colors.warning}
                 />
-                {isVerlopen(h.deadline) && <Badge text="verlopen" bg={colors.dangerLight} fg={colors.danger} />}
               </Pressable>
 
               {expanded && (
                 <View style={styles.detail}>
-                  {h.beschrijving ? <LinkText style={styles.beschrijving}>{h.beschrijving}</LinkText> : null}
+                  {h.beschrijving ? (
+                    <LinkText style={[styles.beschrijving, { textAlign: textStart(isRTL) }]}>{h.beschrijving}</LinkText>
+                  ) : null}
                   {h.hasBijlage && (
-                    <Text style={styles.bijlage} onPress={() => openAttachment("huiswerk", h.id)}>
-                      📎 {h.bijlageNaam ?? "Bijlage openen"}
+                    <Text style={[styles.bijlage, { textAlign: textStart(isRTL) }]} onPress={() => openAttachment("huiswerk", h.id)}>
+                      📎 {h.bijlageNaam ?? t("c_bijlage_openen")}
                     </Text>
                   )}
                   {h.doelLeerlingen && h.doelLeerlingen.length > 0 && (
-                    <Muted>Alleen voor: {h.doelLeerlingen.map((d) => d.leerling.name).join(", ")}</Muted>
+                    <Muted>{t("dh_alleen_voor", { namen: h.doelLeerlingen.map((d) => d.leerling.name).join(", ") })}</Muted>
                   )}
-                  <Button small title="Huiswerk verwijderen" variant="danger" onPress={() => confirmDeleteHuiswerk(h)} />
+                  <Button small title={t("ld_hw_verwijderen_titel")} variant="danger" onPress={() => confirmDeleteHuiswerk(h)} />
 
-                  <Text style={styles.subTitle}>Aftekenen per leerling</Text>
-                  {actionError && <Text style={styles.error}>{actionError}</Text>}
+                  <Text style={[styles.subTitle, { textAlign: textStart(isRTL) }]}>{t("dh_aftekenen")}</Text>
+                  {actionError && <Text style={[styles.error, { textAlign: textStart(isRTL) }]}>{actionError}</Text>}
                   {leerlingen.length === 0 ? (
-                    <Muted>Geen leerlingen gevonden voor dit huiswerk.</Muted>
+                    <Muted>{t("dh_geen_leerlingen")}</Muted>
                   ) : (
                     leerlingen.map((l) => {
                       const inlevering = h.inleveringen.find((i) => i.leerling.id === l.id);
@@ -233,11 +240,11 @@ export default function DocentHuiswerk() {
                       const isBusy = busy === `${h.id}_${l.id}`;
                       return (
                         <View key={l.id} style={styles.leerlingBlock}>
-                          <View style={styles.leerlingRow}>
-                            <Text style={styles.leerlingNaam}>{l.name}</Text>
+                          <View style={[styles.leerlingRow, { flexDirection: row(isRTL) }]}>
+                            <Text style={[styles.leerlingNaam, { textAlign: textStart(isRTL) }]}>{l.name}</Text>
                             <Button
                               small
-                              title={isBusy ? "..." : done ? "✓ Gedaan" : "Aftekenen"}
+                              title={isBusy ? "..." : done ? t("dh_gedaan") : t("dh_aftekenen_knop")}
                               variant={done ? "secondary" : "primary"}
                               onPress={() => toggleAfvinken(h, l.id, done)}
                               disabled={isBusy}
@@ -247,37 +254,37 @@ export default function DocentHuiswerk() {
                             <View style={styles.opmerkingArea}>
                               {inlevering.inhoud && inlevering.inhoud !== "✓" ? (
                                 <View style={styles.inleverBox}>
-                                  <Muted>Ingeleverd:</Muted>
-                                  <Text style={styles.inleverText}>{inlevering.inhoud}</Text>
+                                  <Muted>{t("dh_antwoord")}</Muted>
+                                  <Text style={[styles.inleverText, { textAlign: textStart(isRTL) }]}>{inlevering.inhoud}</Text>
                                 </View>
                               ) : null}
                               {inlevering.hasBijlage ? (
-                                <Text style={styles.bijlage} onPress={() => openAttachment("inlevering", inlevering.id)}>
-                                  📎 {inlevering.bijlageNaam ?? "Ingeleverd bestand"}
+                                <Text style={[styles.bijlage, { textAlign: textStart(isRTL) }]} onPress={() => openAttachment("inlevering", inlevering.id)}>
+                                  📎 {inlevering.bijlageNaam ?? t("dh_bestand_leerling")}
                                 </Text>
                               ) : null}
                               {inlevering.opmerking ? (
-                                <Muted>Opmerking: {inlevering.opmerking}</Muted>
+                                <Muted>{t("dh_opmerking", { tekst: inlevering.opmerking })}</Muted>
                               ) : null}
                               {opmerkingFor === inlevering.id ? (
                                 <View>
                                   <Input
                                     value={opmerkingText}
                                     onChangeText={setOpmerkingText}
-                                    placeholder="Opmerking voor leerling en ouders..."
+                                    placeholder={t("dh_opmerking_ph")}
                                     multiline
                                   />
-                                  <View style={styles.opmerkingButtons}>
+                                  <View style={[styles.opmerkingButtons, { flexDirection: row(isRTL) }]}>
                                     <Button
                                       small
-                                      title="Opslaan"
+                                      title={t("c_opslaan")}
                                       onPress={() => saveOpmerking(inlevering.id)}
                                       loading={busy === inlevering.id}
                                       disabled={!opmerkingText.trim()}
                                     />
                                     <Button
                                       small
-                                      title="Annuleren"
+                                      title={t("c_annuleren")}
                                       variant="ghost"
                                       onPress={() => {
                                         setOpmerkingFor(null);
@@ -294,7 +301,7 @@ export default function DocentHuiswerk() {
                                     setOpmerkingText(inlevering.opmerking ?? "");
                                   }}
                                 >
-                                  {inlevering.opmerking ? "Opmerking bewerken" : "+ Opmerking toevoegen"}
+                                  {inlevering.opmerking ? t("dh_opmerking_bewerken") : t("dh_opmerking_toevoegen")}
                                 </Text>
                               )}
                             </View>
@@ -314,23 +321,23 @@ export default function DocentHuiswerk() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  row: { alignItems: "center", gap: 6, flexWrap: "wrap" },
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
   detail: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
   beschrijving: { fontSize: 14, color: colors.text, marginBottom: 6 },
   bijlage: { color: colors.info, fontSize: 14, textDecorationLine: "underline", marginBottom: 6 },
   subTitle: { fontSize: 13, fontWeight: "600", color: colors.textMuted, marginTop: 6, marginBottom: 4 },
   leerlingBlock: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, paddingVertical: 4 },
-  leerlingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  leerlingRow: { alignItems: "center", justifyContent: "space-between", gap: 8 },
   leerlingNaam: { fontSize: 14, color: colors.text, flex: 1 },
-  opmerkingArea: { paddingLeft: 4, paddingBottom: 4 },
+  opmerkingArea: { paddingStart: 4, paddingBottom: 4 },
   inleverBox: { backgroundColor: colors.bg, borderRadius: 8, padding: 8, marginVertical: 4 },
   inleverText: { fontSize: 13, color: colors.text },
   opmerkingLink: { color: colors.info, fontSize: 13, paddingVertical: 2 },
-  opmerkingButtons: { flexDirection: "row", gap: 8 },
+  opmerkingButtons: { gap: 8 },
   error: { color: colors.danger, fontSize: 13, marginBottom: 4 },
   rankTitle: { fontSize: 15, fontWeight: "700", color: colors.text, marginBottom: 8 },
-  rankRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  rankRow: { alignItems: "center", gap: 8, paddingVertical: 4 },
   rankNum: { width: 24, height: 24, borderWidth: 1, borderColor: colors.primary, alignItems: "center", justifyContent: "center" },
   rankNumLead: { backgroundColor: colors.primary },
   rankNumText: { fontSize: 13, fontWeight: "700", color: colors.primaryDark },

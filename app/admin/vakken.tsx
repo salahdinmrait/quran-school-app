@@ -4,7 +4,9 @@ import { bevestig } from "../../lib/confirm";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
-import { colors, CATEGORIE_LABELS } from "../../lib/theme";
+import { colors } from "../../lib/theme";
+import { useT } from "../../lib/LanguageContext";
+import { row } from "../../lib/rtl";
 
 interface Vak {
   id: string;
@@ -17,6 +19,7 @@ interface Vak {
 const CATEGORIEEN = ["HIFZ", "TAJWEED", "ARABISCH", "FIQH", "SIRA", "OVERIG"];
 
 export default function AdminVakken() {
+  const { t, tel, isRTL, label } = useT();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Vak[]>("/api/vakken");
 
   const [showForm, setShowForm] = useState(false);
@@ -54,7 +57,7 @@ export default function AdminVakken() {
       setShowForm(false);
       await reload();
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : "Kon vak niet aanmaken");
+      setFormError(e instanceof ApiError ? e.message : t("av_aanmaken_mislukt"));
     } finally {
       setSaving(false);
     }
@@ -87,14 +90,14 @@ export default function AdminVakken() {
       setEditId(null);
       await reload();
     } catch (e) {
-      setEditError(e instanceof ApiError ? e.message : "Opslaan mislukt");
+      setEditError(e instanceof ApiError ? e.message : t("c_opslaan_mislukt"));
     } finally {
       setBusy(false);
     }
   }
 
   function confirmDelete(v: Vak) {
-    bevestig("Vak verwijderen", `"${v.naam}" naar het archief verplaatsen?`, async () => {
+    bevestig(t("av_verwijderen_titel"), t("c_archiveren_vraag", { naam: v.naam }), async () => {
       setBusy(true);
       setEditError(null);
       try {
@@ -102,7 +105,7 @@ export default function AdminVakken() {
         setEditId(null);
         await reload();
       } catch (e) {
-        setEditError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+        setEditError(e instanceof ApiError ? e.message : t("c_verwijderen_mislukt"));
       } finally {
         setBusy(false);
       }
@@ -112,59 +115,59 @@ export default function AdminVakken() {
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
       <Button
-        title={showForm ? "Formulier sluiten" : "+ Nieuw vak"}
+        title={showForm ? t("sm_form_sluiten") : t("av_nieuw_vak")}
         variant={showForm ? "secondary" : "primary"}
         onPress={() => setShowForm(!showForm)}
       />
 
       {showForm && (
         <Card>
-          <Input label="Naam *" value={naam} onChangeText={setNaam} placeholder="bijv. Tajweed niveau 1" />
+          <Input label={t("c_naam_verplicht")} value={naam} onChangeText={setNaam} placeholder={t("av_naam_ph")} />
           <ChipSelect
-            label="Categorie *"
-            options={CATEGORIEEN.map((c) => ({ value: c, label: CATEGORIE_LABELS[c] ?? c }))}
+            label={t("av_categorie_verplicht")}
+            options={CATEGORIEEN.map((c) => ({ value: c, label: label("categorie", c) }))}
             value={categorie}
             onChange={setCategorie}
           />
-          <Input label="Beschrijving" value={beschrijving} onChangeText={setBeschrijving} />
+          <Input label={t("c_beschrijving")} value={beschrijving} onChangeText={setBeschrijving} />
           {formError && <Text style={styles.error}>{formError}</Text>}
-          <Button title="Vak aanmaken" onPress={handleCreate} loading={saving} disabled={!naam || !categorie} />
+          <Button title={t("av_vak_aanmaken")} onPress={handleCreate} loading={saving} disabled={!naam || !categorie} />
         </Card>
       )}
 
       {vakken.length === 0 ? (
-        <Empty text="Nog geen vakken." />
+        <Empty text={t("av_geen")} />
       ) : (
         vakken.map((v) => {
           const expanded = editId === v.id;
           return (
             <Card key={v.id}>
               {/* Alleen de kop-rij toggle't — anders klapt de kaart op web dicht bij klikken in het formulier */}
-              <Pressable onPress={() => openEdit(v)} style={styles.row}>
+              <Pressable onPress={() => openEdit(v)} style={[styles.row, { flexDirection: row(isRTL) }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.title}>{v.naam}</Text>
                   <Muted>
-                    {v._count.klassen} klas{v._count.klassen === 1 ? "" : "sen"}
+                    {tel("c_n_klassen", v._count.klassen)}
                     {v.beschrijving ? ` · ${v.beschrijving}` : ""}
                   </Muted>
                 </View>
-                <Badge text={CATEGORIE_LABELS[v.categorie] ?? v.categorie} />
+                <Badge text={label("categorie", v.categorie)} />
               </Pressable>
 
               {expanded && (
                 <View style={styles.detail}>
-                  <Input label="Naam" value={editNaam} onChangeText={setEditNaam} />
+                  <Input label={t("c_naam")} value={editNaam} onChangeText={setEditNaam} />
                   <ChipSelect
-                    label="Categorie"
-                    options={CATEGORIEEN.map((c) => ({ value: c, label: CATEGORIE_LABELS[c] ?? c }))}
+                    label={t("c_categorie")}
+                    options={CATEGORIEEN.map((c) => ({ value: c, label: label("categorie", c) }))}
                     value={editCategorie}
                     onChange={setEditCategorie}
                   />
-                  <Input label="Beschrijving" value={editBeschrijving} onChangeText={setEditBeschrijving} />
+                  <Input label={t("c_beschrijving")} value={editBeschrijving} onChangeText={setEditBeschrijving} />
                   {editError && <Text style={styles.error}>{editError}</Text>}
-                  <View style={styles.btnRow}>
-                    <Button small title="Opslaan" onPress={() => saveEdit(v)} loading={busy} disabled={!editNaam || !editCategorie} />
-                    <Button small title="Verwijderen" variant="danger" onPress={() => confirmDelete(v)} />
+                  <View style={[styles.btnRow, { flexDirection: row(isRTL) }]}>
+                    <Button small title={t("c_opslaan")} onPress={() => saveEdit(v)} loading={busy} disabled={!editNaam || !editCategorie} />
+                    <Button small title={t("c_verwijderen")} variant="danger" onPress={() => confirmDelete(v)} />
                   </View>
                 </View>
               )}
@@ -177,9 +180,9 @@ export default function AdminVakken() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
+  row: { alignItems: "center", gap: 8 },
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
   detail: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
-  btnRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  btnRow: { gap: 8, flexWrap: "wrap" },
   error: { color: colors.danger, marginBottom: 8 },
 });

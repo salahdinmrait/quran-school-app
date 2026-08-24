@@ -18,7 +18,6 @@ export interface AuthUser {
   role: Role;
   schoolId: string | null;
   schoolNaam: string | null;
-  isVolwassen?: boolean;
 }
 
 interface AuthState {

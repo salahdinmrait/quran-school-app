@@ -3,6 +3,8 @@ import { View, Text, Pressable, Platform, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { colors } from "../lib/theme";
+import { useT } from "../lib/LanguageContext";
+import { row, textStart } from "../lib/rtl";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -14,7 +16,7 @@ export function DateField({
   label,
   value,
   onChange,
-  placeholder = "Kies een datum",
+  placeholder,
   minimumDate,
 }: {
   label?: string;
@@ -23,6 +25,7 @@ export function DateField({
   placeholder?: string;
   minimumDate?: Date;
 }) {
+  const { t, isRTL } = useT();
   const [showIos, setShowIos] = useState(false);
   const current = value ? new Date(value + "T00:00:00") : new Date();
 
@@ -49,10 +52,10 @@ export function DateField({
 
   return (
     <View style={styles.wrap}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <Pressable style={styles.field} onPress={open}>
+      {label ? <Text style={[styles.label, { textAlign: textStart(isRTL) }]}>{label}</Text> : null}
+      <Pressable style={[styles.field, { flexDirection: row(isRTL) }]} onPress={open}>
         <Ionicons name="calendar-outline" size={18} color={colors.textMuted} />
-        <Text style={[styles.value, !display && styles.placeholder]}>{display || placeholder}</Text>
+        <Text style={[styles.value, !display && styles.placeholder]}>{display || placeholder || t("c_kies_datum")}</Text>
       </Pressable>
       {Platform.OS === "ios" && showIos && (
         <View style={styles.iosBox}>
@@ -64,7 +67,7 @@ export function DateField({
             onChange={(_e, d) => { if (d) commit(d); }}
           />
           <Pressable style={styles.iosDone} onPress={() => setShowIos(false)}>
-            <Text style={styles.iosDoneText}>Klaar</Text>
+            <Text style={styles.iosDoneText}>{t("c_klaar")}</Text>
           </Pressable>
         </View>
       )}
@@ -78,13 +81,14 @@ export function TimeField({
   label,
   value,
   onChange,
-  placeholder = "Kies een tijd",
+  placeholder,
 }: {
   label?: string;
   value: string;
   onChange: (hhmm: string) => void;
   placeholder?: string;
 }) {
+  const { t, isRTL } = useT();
   const [showIos, setShowIos] = useState(false);
   const base = new Date();
   if (value) {
@@ -113,8 +117,8 @@ export function TimeField({
 
   return (
     <View style={styles.wrap}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <Pressable style={styles.field} onPress={open}>
+      {label ? <Text style={[styles.label, { textAlign: textStart(isRTL) }]}>{label}</Text> : null}
+      <Pressable style={[styles.field, { flexDirection: row(isRTL) }]} onPress={open}>
         <Ionicons name="time-outline" size={18} color={colors.textMuted} />
         <Text style={[styles.value, !value && styles.placeholder]}>{value || placeholder}</Text>
       </Pressable>
@@ -128,7 +132,7 @@ export function TimeField({
             onChange={(_e, d) => { if (d) commit(d); }}
           />
           <Pressable style={styles.iosDone} onPress={() => setShowIos(false)}>
-            <Text style={styles.iosDoneText}>Klaar</Text>
+            <Text style={styles.iosDoneText}>{t("c_klaar")}</Text>
           </Pressable>
         </View>
       )}

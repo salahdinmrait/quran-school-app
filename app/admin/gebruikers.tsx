@@ -5,8 +5,11 @@ import { useRouter } from "expo-router";
 import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
-import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect, CheckRow } from "../../components/ui";
-import { colors, ROLE_LABELS } from "../../lib/theme";
+import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "../../components/ui";
+import { PersonPicker } from "../../components/PersonPicker";
+import { colors } from "../../lib/theme";
+import { useT } from "../../lib/LanguageContext";
+import { row } from "../../lib/rtl";
 
 interface Gebruiker {
   id: string;
@@ -15,7 +18,6 @@ interface Gebruiker {
   role: string;
   telefoon?: string | null;
   actief: boolean;
-  isVolwassen?: boolean;
 }
 
 interface Kind {
@@ -28,6 +30,7 @@ type RoleOption = "ADMIN" | "DOCENT" | "LEERLING" | "OUDER";
 
 export default function AdminGebruikers() {
   const router = useRouter();
+  const { t, tel, isRTL, label } = useT();
   const { user: me } = useAuth();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Gebruiker[]>("/api/gebruikers");
 
@@ -41,7 +44,6 @@ export default function AdminGebruikers() {
   const [telefoon, setTelefoon] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<RoleOption>("LEERLING");
-  const [isVolwassen, setIsVolwassen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<string | null>(null);
@@ -53,7 +55,6 @@ export default function AdminGebruikers() {
   const [editTelefoon, setEditTelefoon] = useState("");
   const [editRole, setEditRole] = useState<RoleOption>("LEERLING");
   const [editActief, setEditActief] = useState(true);
-  const [editVolwassen, setEditVolwassen] = useState(false);
   const [nieuwWachtwoord, setNieuwWachtwoord] = useState("");
   const [busy, setBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -61,7 +62,6 @@ export default function AdminGebruikers() {
 
   // Ouder-kind koppeling
   const [kinderen, setKinderen] = useState<Kind[]>([]);
-  const [koppelZoek, setKoppelZoek] = useState("");
   const [koppelIds, setKoppelIds] = useState<string[]>([]);
 
   const editUser = (data ?? []).find((g) => g.id === editId) ?? null;
@@ -74,7 +74,6 @@ export default function AdminGebruikers() {
     } else {
       setKinderen([]);
     }
-    setKoppelZoek("");
     setKoppelIds([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId, editUser?.role]);
@@ -88,20 +87,10 @@ export default function AdminGebruikers() {
     .filter((g) => !q || g.name.toLowerCase().includes(q) || g.email.toLowerCase().includes(q));
   const leerlingen = (data ?? []).filter((g) => g.role === "LEERLING");
 
-  // Koppelbaar = nog niet gekoppeld en nog niet in de selectie. Met 100+
-  // leerlingen tonen we ze niet allemaal: pas na het typen van een zoekterm
-  // verschijnt er een korte trefferlijst.
-  const koppelbaar = leerlingen.filter(
-    (l) => !kinderen.some((k) => k.id === l.id) && !koppelIds.includes(l.id)
-  );
-  const koppelQ = koppelZoek.trim().toLowerCase();
-  const koppelAlleTreffers = koppelQ
-    ? koppelbaar.filter(
-        (l) => l.name.toLowerCase().includes(koppelQ) || l.email.toLowerCase().includes(koppelQ)
-      )
-    : [];
-  const koppelTreffers = koppelAlleTreffers.slice(0, 8);
-  const koppelRest = koppelAlleTreffers.length - koppelTreffers.length;
+  // Koppelbaar = elke leerling die nog niet aan deze ouder hangt. Het zoeken
+  // zelf doet PersonPicker: zonder zoekterm verschijnt er niets, dus ook bij
+  // honderden leerlingen blijft het scherm rustig.
+  const koppelbaar = leerlingen.filter((l) => !kinderen.some((k) => k.id === l.id));
   const koppelSelectie = koppelIds
     .map((id) => leerlingen.find((l) => l.id === id))
     .filter((l): l is Gebruiker => !!l);
@@ -114,17 +103,16 @@ export default function AdminGebruikers() {
     try {
       await api("/api/gebruikers", {
         method: "POST",
-        body: JSON.stringify({ name, email, telefoon: telefoon || null, password, role, isVolwassen: role === "LEERLING" ? isVolwassen : false }),
+        body: JSON.stringify({ name, email, telefoon: telefoon || null, password, role }),
       });
-      setCreated(`Account voor ${name} aangemaakt ✓`);
+      setCreated(t("ag_aangemaakt", { naam: name }));
       setName("");
       setEmail("");
       setTelefoon("");
       setPassword("");
-      setIsVolwassen(false);
       await reload();
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : "Kon gebruiker niet aanmaken");
+      setFormError(e instanceof ApiError ? e.message : t("ag_aanmaken_mislukt"));
     } finally {
       setSaving(false);
     }
@@ -142,7 +130,6 @@ export default function AdminGebruikers() {
       setEditTelefoon(g.telefoon ?? "");
       setEditRole(g.role as RoleOption);
       setEditActief(g.actief);
-      setEditVolwassen(!!g.isVolwassen);
     }
   }
 
@@ -159,29 +146,28 @@ export default function AdminGebruikers() {
           telefoon: editTelefoon || null,
           role: editRole,
           actief: editActief,
-          isVolwassen: editRole === "LEERLING" ? editVolwassen : false,
           ...(nieuwWachtwoord ? { nieuwWachtwoord } : {}),
         }),
       });
-      setEditOk("Opgeslagen ✓");
+      setEditOk(t("ag_opgeslagen"));
       setNieuwWachtwoord("");
       await reload();
     } catch (e) {
-      setEditError(e instanceof ApiError ? e.message : "Opslaan mislukt");
+      setEditError(e instanceof ApiError ? e.message : t("c_opslaan_mislukt"));
     } finally {
       setBusy(false);
     }
   }
 
   function confirmDelete(g: Gebruiker) {
-    bevestig("Gebruiker verwijderen", `"${g.name}" naar het archief verplaatsen?`, async () => {
+    bevestig(t("ag_verwijderen_titel"), t("c_archiveren_vraag", { naam: g.name }), async () => {
       setBusy(true);
       try {
         await api(`/api/gebruikers/${g.id}`, { method: "DELETE" });
         setEditId(null);
         await reload();
       } catch (e) {
-        setEditError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+        setEditError(e instanceof ApiError ? e.message : t("c_verwijderen_mislukt"));
       } finally {
         setBusy(false);
       }
@@ -206,16 +192,15 @@ export default function AdminGebruikers() {
         });
         gelukt.push({ id: kind.id, name: kind.name, email: kind.email });
       } catch (e) {
-        mislukt.push(`${kind.name}: ${e instanceof ApiError ? e.message : "koppelen mislukt"}`);
+        mislukt.push(`${kind.name}: ${e instanceof ApiError ? e.message : t("ag_koppelen_mislukt")}`);
       }
     }
 
     if (gelukt.length > 0) {
       setKinderen((prev) => [...prev, ...gelukt].sort((a, b) => a.name.localeCompare(b.name)));
-      setEditOk(gelukt.length === 1 ? "Kind gekoppeld ✓" : `${gelukt.length} kinderen gekoppeld ✓`);
+      setEditOk(tel("ag_gekoppeld", gelukt.length));
     }
     setKoppelIds(mislukt.length > 0 ? koppelIds.filter((id) => !gelukt.some((g) => g.id === id)) : []);
-    setKoppelZoek("");
     if (mislukt.length > 0) setEditError(mislukt.join("\n"));
     setBusy(false);
   }
@@ -230,7 +215,7 @@ export default function AdminGebruikers() {
       });
       setKinderen((prev) => prev.filter((k) => k.id !== leerlingId));
     } catch (e) {
-      setEditError(e instanceof ApiError ? e.message : "Ontkoppelen mislukt");
+      setEditError(e instanceof ApiError ? e.message : t("ag_ontkoppelen_mislukt"));
     } finally {
       setBusy(false);
     }
@@ -239,13 +224,13 @@ export default function AdminGebruikers() {
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
       <Button
-        title={showForm ? "Formulier sluiten" : "+ Nieuw account"}
+        title={showForm ? t("sm_form_sluiten") : t("ag_nieuw_account")}
         variant={showForm ? "secondary" : "primary"}
         onPress={() => setShowForm(!showForm)}
       />
       <Button
         small
-        title="🗃️ Archief (verwijderde items)"
+        title={`🗃️ ${t("ag_archief_knop")}`}
         variant="ghost"
         onPress={() => router.push("/admin/archief")}
       />
@@ -253,32 +238,24 @@ export default function AdminGebruikers() {
       {showForm && (
         <Card>
           <ChipSelect<RoleOption>
-            label="Rol"
+            label={t("c_rol")}
             options={[
-              { value: "LEERLING", label: "Leerling" },
-              { value: "OUDER", label: "Ouder" },
-              { value: "DOCENT", label: "Docent" },
-              { value: "ADMIN", label: "Admin" },
+              { value: "LEERLING", label: label("rol", "LEERLING") },
+              { value: "OUDER", label: label("rol", "OUDER") },
+              { value: "DOCENT", label: label("rol", "DOCENT") },
+              { value: "ADMIN", label: label("rol", "ADMIN") },
             ]}
             value={role}
             onChange={setRole}
           />
-          <Input label="Naam" value={name} onChangeText={setName} />
-          <Input label="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-          <Input label="Telefoonnummer (optioneel)" value={telefoon} onChangeText={setTelefoon} keyboardType="phone-pad" />
-          <Input label="Wachtwoord (min. 8 tekens)" value={password} onChangeText={setPassword} autoCapitalize="none" />
-          {role === "LEERLING" && (
-            <CheckRow
-              label="18+ zonder ouder-account"
-              sublabel="Mag zelf gesprekken starten met docent en beheer"
-              checked={isVolwassen}
-              onToggle={() => setIsVolwassen(!isVolwassen)}
-            />
-          )}
+          <Input label={t("c_naam")} value={name} onChangeText={setName} />
+          <Input label={t("c_email")} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+          <Input label={t("c_telefoon_optioneel")} value={telefoon} onChangeText={setTelefoon} keyboardType="phone-pad" />
+          <Input label={t("ag_wachtwoord_min")} value={password} onChangeText={setPassword} autoCapitalize="none" />
           {formError && <Text style={styles.error}>{formError}</Text>}
           {created && <Text style={styles.success}>{created}</Text>}
           <Button
-            title="Account aanmaken"
+            title={t("ag_account_aanmaken")}
             onPress={handleCreate}
             loading={saving}
             disabled={!name || !email || password.length < 8}
@@ -286,152 +263,99 @@ export default function AdminGebruikers() {
         </Card>
       )}
 
-      <Input label="Zoeken" value={zoek} onChangeText={setZoek} placeholder="Zoek op naam of e-mail..." autoCapitalize="none" />
+      <Input label={t("c_zoeken")} value={zoek} onChangeText={setZoek} placeholder={t("c_zoek_naam_email")} autoCapitalize="none" />
       <ChipSelect
-        label="Filter"
+        label={t("c_filter")}
         options={[
-          { value: "ALLE", label: "Alle" },
-          { value: "LEERLING", label: "Leerlingen" },
-          { value: "OUDER", label: "Ouders" },
-          { value: "DOCENT", label: "Docenten" },
-          { value: "ADMIN", label: "Admins" },
+          { value: "ALLE", label: t("c_alle") },
+          { value: "LEERLING", label: t("c_leerlingen") },
+          { value: "OUDER", label: t("c_ouders") },
+          { value: "DOCENT", label: t("c_docenten") },
+          { value: "ADMIN", label: t("c_admins") },
         ]}
         value={filter}
         onChange={setFilter}
       />
 
       {gebruikers.length === 0 ? (
-        <Empty text="Geen gebruikers gevonden." />
+        <Empty text={t("ag_geen_gebruikers")} />
       ) : (
         gebruikers.map((g) => {
           const expanded = editId === g.id;
           return (
             <Card key={g.id}>
               {/* Alleen de kop-rij toggle't — anders klapt de kaart op web dicht bij klikken in het formulier */}
-              <Pressable onPress={() => openEdit(g)} style={styles.row}>
+              <Pressable onPress={() => openEdit(g)} style={[styles.row, { flexDirection: row(isRTL) }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.title}>{g.name}</Text>
                   <Muted>{g.email}</Muted>
                 </View>
-                <Badge text={ROLE_LABELS[g.role] ?? g.role} />
-                {g.role === "LEERLING" && g.isVolwassen && <Badge text="18+" bg={colors.infoLight} fg={colors.info} />}
-                {!g.actief && <Badge text="inactief" bg={colors.dangerLight} fg={colors.danger} />}
+                <Badge text={label("rol", g.role)} />
+                {!g.actief && <Badge text={t("c_inactief")} bg={colors.dangerLight} fg={colors.danger} />}
               </Pressable>
 
               {expanded && (
                 <View style={styles.detail}>
-                  <Input label="Naam" value={editName} onChangeText={setEditName} />
-                  <Input label="E-mail" value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
-                  <Input label="Telefoonnummer (optioneel)" value={editTelefoon} onChangeText={setEditTelefoon} keyboardType="phone-pad" />
+                  <Input label={t("c_naam")} value={editName} onChangeText={setEditName} />
+                  <Input label={t("c_email")} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
+                  <Input label={t("c_telefoon_optioneel")} value={editTelefoon} onChangeText={setEditTelefoon} keyboardType="phone-pad" />
                   <ChipSelect<RoleOption>
-                    label="Rol"
+                    label={t("c_rol")}
                     options={[
-                      { value: "LEERLING", label: "Leerling" },
-                      { value: "OUDER", label: "Ouder" },
-                      { value: "DOCENT", label: "Docent" },
-                      { value: "ADMIN", label: "Admin" },
+                      { value: "LEERLING", label: label("rol", "LEERLING") },
+                      { value: "OUDER", label: label("rol", "OUDER") },
+                      { value: "DOCENT", label: label("rol", "DOCENT") },
+                      { value: "ADMIN", label: label("rol", "ADMIN") },
                     ]}
                     value={editRole}
                     onChange={setEditRole}
                   />
                   <ChipSelect<"actief" | "inactief">
-                    label="Status"
+                    label={t("c_status")}
                     options={[
-                      { value: "actief", label: "Actief" },
-                      { value: "inactief", label: "Inactief" },
+                      { value: "actief", label: t("c_actief") },
+                      { value: "inactief", label: t("c_inactief") },
                     ]}
                     value={editActief ? "actief" : "inactief"}
                     onChange={(v) => setEditActief(v === "actief")}
                   />
-                  {editRole === "LEERLING" && (
-                    <CheckRow
-                      label="18+ zonder ouder-account"
-                      sublabel="Mag zelf gesprekken starten"
-                      checked={editVolwassen}
-                      onToggle={() => setEditVolwassen(!editVolwassen)}
-                    />
-                  )}
                   <Input
-                    label="Nieuw wachtwoord (leeg = niet wijzigen)"
+                    label={t("ag_nieuw_ww")}
                     value={nieuwWachtwoord}
                     onChangeText={setNieuwWachtwoord}
-                    placeholder="min. 8 tekens"
+                    placeholder={t("ag_min8")}
                     autoCapitalize="none"
                   />
 
                   {/* Ouder: gekoppelde kinderen */}
                   {editUser?.role === "OUDER" && (
                     <View>
-                      <Text style={styles.subTitle}>Gekoppelde kinderen</Text>
+                      <Text style={styles.subTitle}>{t("ag_gekoppelde_kinderen")}</Text>
                       {kinderen.length === 0 ? (
-                        <Muted>Nog geen kinderen gekoppeld.</Muted>
+                        <Muted>{t("ag_geen_kinderen")}</Muted>
                       ) : (
                         kinderen.map((k) => (
-                          <View key={k.id} style={styles.kindRow}>
+                          <View key={k.id} style={[styles.kindRow, { flexDirection: row(isRTL) }]}>
                             <Text style={styles.kindNaam}>{k.name}</Text>
-                            <Button small title="Ontkoppelen" variant="ghost" onPress={() => ontkoppelKind(g.id, k.id)} />
+                            <Button small title={t("ag_ontkoppelen")} variant="ghost" onPress={() => ontkoppelKind(g.id, k.id)} />
                           </View>
                         ))
                       )}
                       <View>
-                        <Input
-                          label="Kind koppelen"
-                          value={koppelZoek}
-                          onChangeText={setKoppelZoek}
-                          placeholder="Zoek op naam of e-mail…"
-                          autoCapitalize="none"
+                        <PersonPicker
+                          label={t("ag_kind_koppelen")}
+                          personen={koppelbaar}
+                          geselecteerd={koppelIds}
+                          onChange={setKoppelIds}
+                          placeholder={t("c_zoek_naam_email")}
+                          leegTekst={t("ag_geen_leerling")}
                         />
-
-                        {koppelZoek.trim().length > 0 && (
-                          koppelTreffers.length === 0 ? (
-                            <Muted>Geen leerling gevonden.</Muted>
-                          ) : (
-                            <View style={styles.zoekLijst}>
-                              {koppelTreffers.map((l) => (
-                                <Pressable
-                                  key={l.id}
-                                  onPress={() => {
-                                    setKoppelIds((prev) => [...prev, l.id]);
-                                    setKoppelZoek("");
-                                  }}
-                                  style={({ pressed }) => [
-                                    styles.zoekRij,
-                                    pressed && styles.zoekRijActief,
-                                  ]}
-                                >
-                                  <Text style={styles.kindNaam}>{l.name}</Text>
-                                  <Text style={styles.zoekEmail}>{l.email}</Text>
-                                </Pressable>
-                              ))}
-                              {koppelRest > 0 && (
-                                <Text style={styles.zoekMeer}>
-                                  Nog {koppelRest} andere{koppelRest === 1 ? "" : "n"} — typ verder om te verfijnen.
-                                </Text>
-                              )}
-                            </View>
-                          )
-                        )}
-
-                        {koppelSelectie.length > 0 && (
-                          <View style={styles.selectieRij}>
-                            {koppelSelectie.map((l) => (
-                              <Pressable
-                                key={l.id}
-                                onPress={() => setKoppelIds((prev) => prev.filter((id) => id !== l.id))}
-                                style={styles.selectieChip}
-                              >
-                                <Text style={styles.selectieChipText}>{l.name} ✕</Text>
-                              </Pressable>
-                            ))}
-                          </View>
-                        )}
-
                         <Button
                           small
                           title={
                             koppelSelectie.length > 1
-                              ? `${koppelSelectie.length} kinderen koppelen`
-                              : "Koppelen"
+                              ? tel("ag_koppelen", koppelSelectie.length)
+                              : t("ag_koppelen_een")
                           }
                           onPress={() => koppelKind(g.id)}
                           loading={busy}
@@ -444,7 +368,7 @@ export default function AdminGebruikers() {
                   {g.role === "LEERLING" && (
                     <Button
                       small
-                      title="📋 Leerlingendossier openen"
+                      title={`📋 ${t("ag_dossier_openen")}`}
                       variant="secondary"
                       onPress={() => router.push(`/admin/leerling-dossier?leerlingId=${g.id}&naam=${encodeURIComponent(g.name)}`)}
                     />
@@ -453,16 +377,16 @@ export default function AdminGebruikers() {
                   {editError && <Text style={styles.error}>{editError}</Text>}
                   {editOk && <Text style={styles.success}>{editOk}</Text>}
 
-                  <View style={styles.btnRow}>
+                  <View style={[styles.btnRow, { flexDirection: row(isRTL) }]}>
                     <Button
                       small
-                      title="Opslaan"
+                      title={t("c_opslaan")}
                       onPress={() => saveEdit(g)}
                       loading={busy}
                       disabled={editName.length < 2 || !editEmail || (nieuwWachtwoord.length > 0 && nieuwWachtwoord.length < 8)}
                     />
                     {g.id !== me?.id && (
-                      <Button small title="Verwijderen" variant="danger" onPress={() => confirmDelete(g)} />
+                      <Button small title={t("c_verwijderen")} variant="danger" onPress={() => confirmDelete(g)} />
                     )}
                   </View>
                 </View>
@@ -476,39 +400,18 @@ export default function AdminGebruikers() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  row: { alignItems: "center", gap: 6, flexWrap: "wrap" },
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
   detail: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
   subTitle: { fontSize: 13, fontWeight: "600", color: colors.textMuted, marginTop: 4, marginBottom: 4 },
   kindRow: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
     paddingVertical: 2,
   },
   kindNaam: { fontSize: 14, color: colors.text },
-  zoekLijst: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    backgroundColor: colors.card,
-    marginBottom: 8,
-    overflow: "hidden",
-  },
-  zoekRij: { paddingVertical: 8, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-  zoekRijActief: { backgroundColor: colors.primaryLight },
-  zoekEmail: { fontSize: 12, color: colors.textMuted },
-  zoekMeer: { fontSize: 12, color: colors.textFaint, padding: 8 },
-  selectieRij: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 },
-  selectieChip: {
-    backgroundColor: colors.primaryLight,
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-  },
-  selectieChipText: { fontSize: 13, color: colors.primaryDark, fontWeight: "500" },
-  btnRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 4 },
+  btnRow: { gap: 8, flexWrap: "wrap", marginTop: 4 },
   error: { color: colors.danger, marginBottom: 8 },
   success: { color: colors.primaryDark, marginBottom: 8 },
 });

@@ -4,16 +4,18 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../lib/auth";
 import { bevestig } from "../lib/confirm";
 import { colors } from "../lib/theme";
+import { useT } from "../lib/LanguageContext";
 
 export function LogoutButton() {
   const { logout } = useAuth();
+  const { t } = useT();
   const router = useRouter();
 
   function confirm() {
-    bevestig("Uitloggen", "Weet je zeker dat je wilt uitloggen?", async () => {
+    bevestig(t("nav_uitloggen"), t("c_uitloggen_vraag"), async () => {
       await logout();
       router.replace("/login");
-    }, "Uitloggen");
+    }, t("nav_uitloggen"));
   }
 
   return (

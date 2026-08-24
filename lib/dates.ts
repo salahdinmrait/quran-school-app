@@ -1,13 +1,38 @@
 // Kalender-helpers voor de agenda (dag/week/maand). Pure datum-rekenkunde.
+// De namen komen uit het taalbestand; LanguageContext zet ze hier neer bij
+// elke taalwissel, net als in lib/format.ts. De weken beginnen overal op
+// maandag, ook in het Arabisch - de school draait op een Nederlands rooster.
 
-export const WEEKDAGEN_KORT = ["ma", "di", "wo", "do", "vr", "za", "zo"];
-export const WEEKDAGEN_LANG = [
+let WEEKDAGEN_KORT = ["ma", "di", "wo", "do", "vr", "za", "zo"];
+
+/** De zeven kolomkoppen van de maandweergave, maandag eerst. */
+export function weekdagenKort(): string[] {
+  return WEEKDAGEN_KORT;
+}
+let WEEKDAGEN_LANG = [
   "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag",
 ];
-export const MAANDEN_LANG = [
+let MAANDEN_LANG = [
   "januari", "februari", "maart", "april", "mei", "juni",
   "juli", "augustus", "september", "oktober", "november", "december",
 ];
+let MAANDEN_KORT = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+
+/**
+ * Aangeroepen door <LanguageProvider>. Alle vier de arrays lopen van maandag
+ * t/m zondag resp. januari t/m december.
+ */
+export function setKalenderLabels(
+  dagenKort: string[],
+  dagenLang: string[],
+  maandenLang: string[],
+  maandenKort: string[]
+): void {
+  if (dagenKort.length === 7) WEEKDAGEN_KORT = dagenKort;
+  if (dagenLang.length === 7) WEEKDAGEN_LANG = dagenLang;
+  if (maandenLang.length === 12) MAANDEN_LANG = maandenLang;
+  if (maandenKort.length === 12) MAANDEN_KORT = maandenKort;
+}
 
 export function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -73,6 +98,5 @@ export function fmtMaandJaar(d: Date): string {
 
 // "23 apr"
 export function fmtDagKort(d: Date): string {
-  const m = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
-  return `${d.getDate()} ${m[d.getMonth()]}`;
+  return `${d.getDate()} ${MAANDEN_KORT[d.getMonth()]}`;
 }

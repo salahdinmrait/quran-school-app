@@ -11,12 +11,15 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { api, ApiError } from "../lib/api";
 import { Button, Input } from "../components/ui";
 import { Logo } from "../components/Logo";
+import { LanguageButton } from "../components/LanguageButton";
 import { colors } from "../lib/theme";
+import { useT } from "../lib/LanguageContext";
 
 // Scherm achter de link uit de welkomst- en wachtwoord-vergeten-mail.
 // Zowel het instellen als het inloggen daarna gebeurt hier in de app.
 export default function WachtwoordInstellenScreen() {
   const router = useRouter();
+  const { t, isRTL } = useT();
   const { token } = useLocalSearchParams<{ token?: string }>();
 
   const [wachtwoord, setWachtwoord] = useState("");
@@ -28,11 +31,11 @@ export default function WachtwoordInstellenScreen() {
   async function handleOpslaan() {
     setError(null);
     if (wachtwoord.length < 8) {
-      setError("Kies een wachtwoord van minimaal 8 tekens");
+      setError(t("ww_te_kort"));
       return;
     }
     if (wachtwoord !== herhaling) {
-      setError("De twee wachtwoorden zijn niet gelijk");
+      setError(t("ww_niet_gelijk"));
       return;
     }
     setLoading(true);
@@ -43,9 +46,7 @@ export default function WachtwoordInstellenScreen() {
       });
       setGelukt(true);
     } catch (e) {
-      setError(
-        e instanceof ApiError ? e.message : "Er ging iets mis — probeer het opnieuw"
-      );
+      setError(e instanceof ApiError ? e.message : t("c_fout_opnieuw"));
     } finally {
       setLoading(false);
     }
@@ -57,43 +58,40 @@ export default function WachtwoordInstellenScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.inner}>
+        <View style={[styles.taalRij, { alignItems: isRTL ? "flex-start" : "flex-end" }]}>
+          <LanguageButton />
+        </View>
         <View style={styles.logoWrap}>
           <Logo size={52} />
         </View>
-        <Text style={styles.titel}>Wachtwoord instellen</Text>
+        <Text style={styles.titel}>{t("ww_instellen_titel")}</Text>
 
         {!token ? (
           <>
-            <Text style={styles.uitleg}>
-              Deze link is niet compleet. Vraag een nieuwe link aan; die is een uur geldig.
-            </Text>
+            <Text style={styles.uitleg}>{t("ww_link_incompleet")}</Text>
             <Button
-              title="Nieuwe link aanvragen"
+              title={t("ww_nieuwe_link")}
               onPress={() => router.replace("/wachtwoord-vergeten")}
             />
           </>
         ) : gelukt ? (
           <>
-            <Text style={styles.uitleg}>
-              Je wachtwoord is opgeslagen. Log in met je e-mailadres en je nieuwe wachtwoord.
-            </Text>
-            <Button title="Naar inloggen" onPress={() => router.replace("/login")} />
+            <Text style={styles.uitleg}>{t("ww_gelukt")}</Text>
+            <Button title={t("ww_naar_inloggen")} onPress={() => router.replace("/login")} />
           </>
         ) : (
           <>
-            <Text style={styles.uitleg}>
-              Kies een eigen wachtwoord van minimaal 8 tekens. Daarmee log je voortaan in.
-            </Text>
+            <Text style={styles.uitleg}>{t("ww_kies_uitleg")}</Text>
 
             <Input
-              label="Nieuw wachtwoord"
+              label={t("ww_nieuw")}
               value={wachtwoord}
               onChangeText={setWachtwoord}
               placeholder="••••••••"
               secureTextEntry
             />
             <Input
-              label="Herhaal wachtwoord"
+              label={t("ww_herhaal")}
               value={herhaling}
               onChangeText={setHerhaling}
               placeholder="••••••••"
@@ -103,14 +101,14 @@ export default function WachtwoordInstellenScreen() {
             {error && <Text style={styles.error}>{error}</Text>}
 
             <Button
-              title="Wachtwoord opslaan"
+              title={t("ww_opslaan")}
               onPress={handleOpslaan}
               loading={loading}
               disabled={!wachtwoord || !herhaling}
             />
 
             <Pressable onPress={() => router.replace("/login")}>
-              <Text style={styles.terugLink}>Terug naar inloggen</Text>
+              <Text style={styles.terugLink}>{t("ww_terug_inloggen")}</Text>
             </Pressable>
           </>
         )}
@@ -122,6 +120,7 @@ export default function WachtwoordInstellenScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, justifyContent: "center" },
   inner: { padding: 24 },
+  taalRij: { marginBottom: 4 },
   logoWrap: { alignSelf: "center", marginBottom: 10 },
   titel: {
     fontSize: 18,

@@ -12,10 +12,13 @@ import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/api";
 import { Button, Input } from "../components/ui";
 import { Logo } from "../components/Logo";
+import { LanguageButton } from "../components/LanguageButton";
 import { colors } from "../lib/theme";
+import { useT } from "../lib/LanguageContext";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t, isRTL } = useT();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +32,7 @@ export default function LoginScreen() {
       await login(email.trim(), password);
       router.replace("/");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Inloggen mislukt");
+      setError(e instanceof ApiError ? e.message : t("login_mislukt"));
     } finally {
       setLoading(false);
     }
@@ -41,21 +44,24 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.inner}>
+        <View style={[styles.taalRij, { alignItems: isRTL ? "flex-start" : "flex-end" }]}>
+          <LanguageButton />
+        </View>
         <View style={styles.logoWrap}>
           <Logo size={52} />
         </View>
-        <Text style={styles.appSubtitle}>Log in met je schoolaccount</Text>
+        <Text style={styles.appSubtitle}>{t("login_sub")}</Text>
 
         <Input
-          label="E-mailadres"
+          label={t("c_emailadres")}
           value={email}
           onChangeText={setEmail}
-          placeholder="naam@school.nl"
+          placeholder={t("login_email_ph")}
           keyboardType="email-address"
           autoCapitalize="none"
         />
         <Input
-          label="Wachtwoord"
+          label={t("c_wachtwoord")}
           value={password}
           onChangeText={setPassword}
           placeholder="••••••••"
@@ -65,14 +71,14 @@ export default function LoginScreen() {
         {error && <Text style={styles.error}>{error}</Text>}
 
         <Button
-          title="Inloggen"
+          title={t("login_knop")}
           onPress={handleLogin}
           loading={loading}
           disabled={!email || !password}
         />
 
         <Pressable onPress={() => router.push("/wachtwoord-vergeten")}>
-          <Text style={styles.vergetenLink}>Wachtwoord vergeten?</Text>
+          <Text style={styles.vergetenLink}>{t("login_vergeten")}</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -82,6 +88,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, justifyContent: "center" },
   inner: { padding: 24 },
+  taalRij: { marginBottom: 4 },
   logoWrap: { alignSelf: "center", marginBottom: 10 },
   appSubtitle: {
     fontSize: 14,

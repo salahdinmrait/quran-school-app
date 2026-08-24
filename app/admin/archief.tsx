@@ -3,7 +3,9 @@ import { useFetch } from "../../lib/useFetch";
 import { api, ApiError } from "../../lib/api";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button } from "../../components/ui";
 import { bevestig } from "../../lib/confirm";
-import { colors, ROLE_LABELS } from "../../lib/theme";
+import { colors } from "../../lib/theme";
+import { useT } from "../../lib/LanguageContext";
+import { row } from "../../lib/rtl";
 import { fmtDatum } from "../../lib/format";
 import { useState } from "react";
 
@@ -16,6 +18,7 @@ interface ArchiefData {
 // Archief van verwijderde personen/klassen/vakken. Alleen ADMIN.
 // Items kunnen hier alleen nog definitief verwijderd worden (geen terugzetten).
 export default function AdminArchief() {
+  const { t, isRTL, label } = useT();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<ArchiefData>("/api/admin/archief");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -30,8 +33,8 @@ export default function AdminArchief() {
 
   function definitief(type: "gebruiker" | "klas" | "vak", id: string, naam: string) {
     bevestig(
-      "Definitief verwijderen",
-      `"${naam}" en alle bijbehorende gegevens definitief verwijderen? Dit kan niet ongedaan worden gemaakt.`,
+      t("aa_definitief"),
+      t("aa_definitief_vraag", { naam }),
       async () => {
         setBusyId(id);
         setActionError(null);
@@ -42,40 +45,38 @@ export default function AdminArchief() {
           });
           await reload();
         } catch (e) {
-          setActionError(e instanceof ApiError ? e.message : "Verwijderen mislukt");
+          setActionError(e instanceof ApiError ? e.message : t("c_verwijderen_mislukt"));
         } finally {
           setBusyId(null);
         }
       },
-      "Definitief verwijderen"
+      t("aa_definitief")
     );
   }
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
-      <Muted style={{ marginBottom: 12 }}>
-        Verwijderde items belanden hier. Definitief verwijderen wist ook alle bijbehorende gegevens en kan niet ongedaan worden gemaakt.
-      </Muted>
+      <Muted style={{ marginBottom: 12 }}>{t("aa_uitleg")}</Muted>
       {actionError && <Text style={styles.error}>{actionError}</Text>}
 
-      {leeg && <Empty icon="archive-outline" text="Het archief is leeg." />}
+      {leeg && <Empty icon="archive-outline" text={t("aa_leeg")} />}
 
       {gebruikers.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Personen ({gebruikers.length})</Text>
+          <Text style={styles.sectionLabel}>{t("aa_personen_n", { count: gebruikers.length })}</Text>
           {gebruikers.map((g) => (
             <Card key={g.id}>
-              <View style={styles.row}>
+              <View style={[styles.row, { flexDirection: row(isRTL) }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.title}>{g.name}</Text>
-                  <Muted>{g.email} · gearchiveerd {fmtDatum(g.verwijderdOp)}</Muted>
+                  <Muted>{g.email} · {t("aa_gearchiveerd", { datum: fmtDatum(g.verwijderdOp) })}</Muted>
                 </View>
-                <Badge text={ROLE_LABELS[g.role] ?? g.role} />
+                <Badge text={label("rol", g.role)} />
               </View>
               <View style={styles.btnRow}>
                 <Button
                   small
-                  title="Definitief verwijderen"
+                  title={t("aa_definitief")}
                   variant="danger"
                   loading={busyId === g.id}
                   onPress={() => definitief("gebruiker", g.id, g.name)}
@@ -88,15 +89,15 @@ export default function AdminArchief() {
 
       {klassen.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Klassen ({klassen.length})</Text>
+          <Text style={styles.sectionLabel}>{t("aa_klassen_n", { count: klassen.length })}</Text>
           {klassen.map((k) => (
             <Card key={k.id}>
               <Text style={styles.title}>{k.naam}</Text>
-              <Muted>gearchiveerd {fmtDatum(k.verwijderdOp)}</Muted>
+              <Muted>{t("aa_gearchiveerd", { datum: fmtDatum(k.verwijderdOp) })}</Muted>
               <View style={styles.btnRow}>
                 <Button
                   small
-                  title="Definitief verwijderen"
+                  title={t("aa_definitief")}
                   variant="danger"
                   loading={busyId === k.id}
                   onPress={() => definitief("klas", k.id, k.naam)}
@@ -109,15 +110,15 @@ export default function AdminArchief() {
 
       {vakken.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>Vakken ({vakken.length})</Text>
+          <Text style={styles.sectionLabel}>{t("aa_vakken_n", { count: vakken.length })}</Text>
           {vakken.map((v) => (
             <Card key={v.id}>
               <Text style={styles.title}>{v.naam}</Text>
-              <Muted>gearchiveerd {fmtDatum(v.verwijderdOp)}</Muted>
+              <Muted>{t("aa_gearchiveerd", { datum: fmtDatum(v.verwijderdOp) })}</Muted>
               <View style={styles.btnRow}>
                 <Button
                   small
-                  title="Definitief verwijderen"
+                  title={t("aa_definitief")}
                   variant="danger"
                   loading={busyId === v.id}
                   onPress={() => definitief("vak", v.id, v.naam)}
@@ -132,7 +133,7 @@ export default function AdminArchief() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  row: { alignItems: "center", gap: 6, flexWrap: "wrap" },
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
   sectionLabel: { fontSize: 13, fontWeight: "600", color: colors.textMuted, textTransform: "uppercase", marginBottom: 8, marginTop: 8 },
   btnRow: { flexDirection: "row", marginTop: 8 },

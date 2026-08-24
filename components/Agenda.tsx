@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../lib/theme";
 import {
-  WEEKDAGEN_KORT, addDays, dayKey, fmtDagLang, fmtMaandJaar, monthGrid,
+  weekdagenKort, addDays, dayKey, fmtDagLang, fmtMaandJaar, monthGrid,
   sameDay, startOfDay, weekDays,
 } from "../lib/dates";
+import { useT } from "../lib/LanguageContext";
+import { dirIcon, row, textStart } from "../lib/rtl";
 
 export interface AgendaEvent {
   id: string;
@@ -19,9 +21,18 @@ export interface AgendaEvent {
   onPress?: () => void;
 }
 
+// Het huiswerk-label bij een les. Docent en leerling zien exact hetzelfde:
+// niets zonder huiswerk, het label bij één stuk, met aantal erbij bij meer.
+// Het label komt uit de taalkeuze, dus de aanroeper geeft t("c_hw_label") mee.
+export function huiswerkBadge(aantal: number, label: string): AgendaEvent["badges"] {
+  if (aantal <= 0) return undefined;
+  return [{ text: aantal > 1 ? `${label} ${aantal}` : label }];
+}
+
 type Mode = "dag" | "week" | "maand";
 
 export function Agenda({ events }: { events: AgendaEvent[] }) {
+  const { t, isRTL } = useT();
   const [mode, setMode] = useState<Mode>("week");
   const [anchor, setAnchor] = useState<Date>(startOfDay(new Date()));
 
@@ -46,32 +57,32 @@ export function Agenda({ events }: { events: AgendaEvent[] }) {
 
   const periodeLabel =
     mode === "dag" ? fmtDagLang(anchor)
-    : mode === "week" ? `Week van ${fmtDagLang(weekDays(anchor)[0])}`
+    : mode === "week" ? t("ag_week_van", { datum: fmtDagLang(weekDays(anchor)[0]) })
     : fmtMaandJaar(anchor);
 
   return (
     <View style={{ flex: 1 }}>
       {/* Modus-schakelaar */}
-      <View style={styles.modeRow}>
+      <View style={[styles.modeRow, { flexDirection: row(isRTL) }]}>
         {(["dag", "week", "maand"] as Mode[]).map((m) => (
           <Pressable key={m} onPress={() => setMode(m)} style={[styles.modeChip, mode === m && styles.modeChipActive]}>
             <Text style={[styles.modeChipText, mode === m && styles.modeChipTextActive]}>
-              {m === "dag" ? "Dag" : m === "week" ? "Week" : "Maand"}
+              {m === "dag" ? t("ag_dag") : m === "week" ? t("ag_week") : t("ag_maand")}
             </Text>
           </Pressable>
         ))}
       </View>
 
       {/* Periode-navigatie */}
-      <View style={styles.navRow}>
+      <View style={[styles.navRow, { flexDirection: row(isRTL) }]}>
         <Pressable onPress={() => shift(-1)} hitSlop={10} style={styles.navBtn}>
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <Ionicons name={dirIcon("chevron-back", isRTL)} size={20} color={colors.text} />
         </Pressable>
         <Pressable onPress={() => setAnchor(startOfDay(new Date()))} style={{ flex: 1 }}>
           <Text style={styles.periodeLabel} numberOfLines={1}>{periodeLabel}</Text>
         </Pressable>
         <Pressable onPress={() => shift(1)} hitSlop={10} style={styles.navBtn}>
-          <Ionicons name="chevron-forward" size={20} color={colors.text} />
+          <Ionicons name={dirIcon("chevron-forward", isRTL)} size={20} color={colors.text} />
         </Pressable>
       </View>
 
@@ -85,17 +96,18 @@ export function Agenda({ events }: { events: AgendaEvent[] }) {
 }
 
 function EventCard({ e }: { e: AgendaEvent }) {
+  const { isRTL } = useT();
   const inner = (
-    <View style={styles.event}>
+    <View style={[styles.event, { flexDirection: row(isRTL) }]}>
       <View style={styles.eventTime}>
         <Text style={styles.eventTimeText}>{e.begintijd}</Text>
         <Text style={styles.eventTimeMuted}>{e.eindtijd}</Text>
       </View>
       <View style={styles.eventBody}>
-        <Text style={styles.eventTitle}>{e.titel}</Text>
-        {e.subtitel ? <Text style={styles.eventSub}>{e.subtitel}</Text> : null}
+        <Text style={[styles.eventTitle, { textAlign: textStart(isRTL) }]}>{e.titel}</Text>
+        {e.subtitel ? <Text style={[styles.eventSub, { textAlign: textStart(isRTL) }]}>{e.subtitel}</Text> : null}
         {e.badges && e.badges.length > 0 && (
-          <View style={styles.badgeRow}>
+          <View style={[styles.badgeRow, { flexDirection: row(isRTL) }]}>
             {e.badges.map((b, i) => (
               <View key={i} style={[styles.badge, { backgroundColor: b.bg ?? colors.primaryLight }]}>
                 <Text style={[styles.badgeText, { color: b.fg ?? colors.primaryDark }]}>{b.text}</Text>
@@ -118,11 +130,12 @@ function EventCard({ e }: { e: AgendaEvent }) {
 }
 
 function DagView({ dag, byDay }: { dag: Date; byDay: Map<string, AgendaEvent[]> }) {
+  const { t } = useT();
   const items = byDay.get(dayKey(dag)) ?? [];
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
       {items.length === 0 ? (
-        <Empty text="Geen lessen op deze dag." />
+        <Empty text={t("ag_geen_lessen_dag")} />
       ) : (
         items.map((e) => <EventCard key={e.id} e={e} />)
       )}
@@ -131,6 +144,7 @@ function DagView({ dag, byDay }: { dag: Date; byDay: Map<string, AgendaEvent[]> 
 }
 
 function WeekView({ anchor, byDay }: { anchor: Date; byDay: Map<string, AgendaEvent[]> }) {
+  const { t, isRTL } = useT();
   const days = weekDays(anchor);
   const today = new Date();
   return (
@@ -140,7 +154,7 @@ function WeekView({ anchor, byDay }: { anchor: Date; byDay: Map<string, AgendaEv
         if (items.length === 0) return null;
         return (
           <View key={dayKey(d)} style={styles.weekDay}>
-            <Text style={[styles.weekDayLabel, sameDay(d, today) && styles.todayLabel]}>
+            <Text style={[styles.weekDayLabel, { textAlign: textStart(isRTL) }, sameDay(d, today) && styles.todayLabel]}>
               {fmtDagLang(d)}
             </Text>
             {items.map((e) => <EventCard key={e.id} e={e} />)}
@@ -148,7 +162,7 @@ function WeekView({ anchor, byDay }: { anchor: Date; byDay: Map<string, AgendaEv
         );
       })}
       {days.every((d) => (byDay.get(dayKey(d)) ?? []).length === 0) && (
-        <Empty text="Geen lessen deze week." />
+        <Empty text={t("ag_geen_lessen_week")} />
       )}
     </ScrollView>
   );
@@ -161,17 +175,18 @@ function MaandView({
   byDay: Map<string, AgendaEvent[]>;
   onPickDay: (d: Date) => void;
 }) {
+  const { t, isRTL } = useT();
   const grid = monthGrid(anchor);
   const today = new Date();
   const maand = anchor.getMonth();
   return (
     <ScrollView contentContainerStyle={styles.scroll}>
-      <View style={styles.weekHeader}>
-        {WEEKDAGEN_KORT.map((w) => (
+      <View style={[styles.weekHeader, { flexDirection: row(isRTL) }]}>
+        {weekdagenKort().map((w) => (
           <Text key={w} style={styles.weekHeaderCell}>{w}</Text>
         ))}
       </View>
-      <View style={styles.monthGrid}>
+      <View style={[styles.monthGrid, { flexDirection: row(isRTL) }]}>
         {grid.map((d) => {
           const inMonth = d.getMonth() === maand;
           const heeft = (byDay.get(dayKey(d)) ?? []).length > 0;
@@ -188,7 +203,7 @@ function MaandView({
           );
         })}
       </View>
-      <Text style={styles.maandHint}>Tik op een dag voor de lessen.</Text>
+      <Text style={styles.maandHint}>{t("ag_maand_hint")}</Text>
     </ScrollView>
   );
 }

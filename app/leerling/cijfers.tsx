@@ -1,9 +1,11 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useFetch } from "../../lib/useFetch";
+import { useT } from "../../lib/LanguageContext";
+import { row, textStart } from "../../lib/rtl";
 import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty } from "../../components/ui";
 import { LinkText } from "../../components/LinkText";
 import { openAttachment } from "../../lib/bijlage";
-import { colors, CATEGORIE_LABELS } from "../../lib/theme";
+import { colors } from "../../lib/theme";
 import { fmtDatum } from "../../lib/format";
 
 interface Cijfer {
@@ -23,6 +25,7 @@ function kleur(w: number) {
 }
 
 export default function LeerlingCijfers() {
+  const { t, isRTL, label } = useT();
   const { data, error, loading, refreshing, refresh, reload } = useFetch<Cijfer[]>("/api/leerling/cijfers");
 
   if (loading) return <Loading />;
@@ -44,9 +47,9 @@ export default function LeerlingCijfers() {
     <Screen refreshing={refreshing} onRefresh={refresh}>
       {vakGemiddelden.length > 0 && (
         <Card>
-          <Text style={styles.cardSub}>Gemiddelde per vak</Text>
+          <Text style={[styles.cardSub, { textAlign: textStart(isRTL) }]}>{t("c_gemiddelde_per_vak")}</Text>
           {vakGemiddelden.map((v) => (
-            <View key={v.naam} style={styles.gemRow}>
+            <View key={v.naam} style={[styles.gemRow, { flexDirection: row(isRTL) }]}>
               <Text style={styles.vakNaam}>{v.naam}</Text>
               <Badge text={v.gem.toFixed(1)} {...kleur(v.gem)} />
             </View>
@@ -55,20 +58,27 @@ export default function LeerlingCijfers() {
       )}
 
       {cijfers.length === 0 ? (
-        <Empty text="Nog geen cijfers." />
+        <Empty text={t("lc_geen")} />
       ) : (
         cijfers.map((c) => (
           <Card key={c.id}>
-            <View style={styles.row}>
+            <View style={[styles.row, { flexDirection: row(isRTL) }]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.title}>{c.vak.naam}</Text>
+                <Text style={[styles.title, { textAlign: textStart(isRTL) }]}>{c.vak.naam}</Text>
                 <Muted>
-                  {CATEGORIE_LABELS[c.vak.categorie] ?? c.vak.categorie} · {fmtDatum(c.datum)}
+                  {label("categorie", c.vak.categorie)} · {fmtDatum(c.datum)}
                 </Muted>
                 {c.omschrijving ? <Muted style={{ marginTop: 2 }}>{c.omschrijving}</Muted> : null}
-                {c.opmerking ? <LinkText style={styles.opmerking}>{c.opmerking}</LinkText> : null}
+                {c.opmerking ? (
+                  <LinkText style={[styles.opmerking, { textAlign: textStart(isRTL) }]}>{c.opmerking}</LinkText>
+                ) : null}
                 {c.hasBijlage ? (
-                  <Text style={styles.bijlage} onPress={() => openAttachment("cijfer", c.id)}>📎 Bijlage</Text>
+                  <Text
+                    style={[styles.bijlage, { textAlign: textStart(isRTL) }]}
+                    onPress={() => openAttachment("cijfer", c.id)}
+                  >
+                    📎 {t("c_bijlage")}
+                  </Text>
                 ) : null}
               </View>
               <Badge text={c.waarde.toFixed(1)} {...kleur(c.waarde)} />
@@ -82,9 +92,9 @@ export default function LeerlingCijfers() {
 
 const styles = StyleSheet.create({
   cardSub: { fontSize: 13, fontWeight: "600", color: colors.textMuted, marginBottom: 6 },
-  gemRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
+  gemRow: { alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
   vakNaam: { fontSize: 14, color: colors.text, fontWeight: "500" },
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
+  row: { alignItems: "center", gap: 8 },
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
   opmerking: { fontSize: 13, color: colors.info, marginTop: 2 },
   bijlage: { fontSize: 13, color: colors.info, textDecorationLine: "underline", marginTop: 2 },

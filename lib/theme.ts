@@ -41,32 +41,11 @@ export const shadows = {
   button: { shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
 };
 
-export const ROLE_LABELS: Record<string, string> = {
-  ADMIN: "Beheerder",
-  DOCENT: "Docent",
-  LEERLING: "Leerling",
-  OUDER: "Ouder",
-};
-
-export const STATUS_LABELS: Record<string, string> = {
-  AANWEZIG: "Aanwezig",
-  AFWEZIG: "Afwezig",
-  TE_LAAT: "Te laat",
-  GEOORLOOFD: "Geoorloofd",
-};
-
+// Rol-, status- en categorienamen staan niet meer hier maar in lib/i18n:
+// gebruik label("rol" | "status" | "categorie", waarde) uit useT().
 export const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   AANWEZIG: { bg: colors.successLight, fg: colors.primaryDark },
   AFWEZIG: { bg: colors.dangerLight, fg: colors.danger },
   TE_LAAT: { bg: colors.warningLight, fg: colors.warning },
   GEOORLOOFD: { bg: colors.infoLight, fg: colors.info },
-};
-
-export const CATEGORIE_LABELS: Record<string, string> = {
-  HIFZ: "Hifdh",
-  TAJWEED: "Tajweed",
-  ARABISCH: "Arabisch",
-  FIQH: "Fiqh",
-  SIRA: "Sira",
-  OVERIG: "Overig",
 };

@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from "react-native";
 import { colors } from "../lib/theme";
+import { useT } from "../lib/LanguageContext";
 
 // Web-variant: gebruikt de native HTML datum/tijd-kiezer van de browser.
 // value/onChange in API-formaat ("YYYY-MM-DD" resp. "HH:MM").
@@ -29,13 +30,20 @@ export function DateField({
   placeholder?: string;
   minimumDate?: Date;
 }) {
+  const { isRTL } = useT();
   const min = minimumDate
     ? `${minimumDate.getFullYear()}-${String(minimumDate.getMonth() + 1).padStart(2, "0")}-${String(minimumDate.getDate()).padStart(2, "0")}`
     : undefined;
   return (
     <View style={styles.wrap}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <input type="date" value={value} min={min} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
+      {label ? <Text style={[styles.label, { textAlign: isRTL ? "right" : "left" }]}>{label}</Text> : null}
+      <input
+        type="date"
+        value={value}
+        min={min}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ ...inputStyle, textAlign: isRTL ? "right" : "left" }}
+      />
     </View>
   );
 }
@@ -50,10 +58,16 @@ export function TimeField({
   onChange: (hhmm: string) => void;
   placeholder?: string;
 }) {
+  const { isRTL } = useT();
   return (
     <View style={styles.wrap}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <input type="time" value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
+      {label ? <Text style={[styles.label, { textAlign: isRTL ? "right" : "left" }]}>{label}</Text> : null}
+      <input
+        type="time"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ ...inputStyle, textAlign: isRTL ? "right" : "left" }}
+      />
     </View>
   );
 }
