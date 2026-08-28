@@ -174,6 +174,7 @@ export const nl = {
   c_er_ging_iets_mis: "Er ging iets mis",
   c_kon_bestand_niet_lezen: "Kon bestand niet lezen.",
   c_bestand_te_groot: "Bestand is te groot (max 4 MB).",
+  c_upload_mislukt: "Uploaden van de bijlage is mislukt. Probeer het opnieuw.",
   c_uitloggen_vraag: "Weet je zeker dat je wilt uitloggen?",
   c_geen_personen_gevonden: "Geen personen gevonden.",
   c_kies_datum: "Kies een datum",

@@ -3,38 +3,43 @@ import * as DocumentPicker from "expo-document-picker";
 import { getApiUrl, getAuthToken } from "./api";
 import type { Sleutel } from "./i18n";
 
-// Bijlagen gaan als base64 mee in het verzoek; daarom max ±4 MB
-// (foto's, pdf's, korte audio). Grote video's gaan via een directe upload elders.
+// Max per bijlage. Gaat ongecodeerd (multipart) naar /api/bijlage-upload, dat
+// zelf naar Vercel Blob schrijft — niet meer als base64 in het JSON-verzoek,
+// dus de oude grens van "moet onder Vercels 4,5 MB-lichaamslimiet passen na
+// ×1,33 base64-opslag" (~3,3 MB) geldt niet meer. 4 MB is ruim genoeg voor
+// foto's, pdf's en korte audio-opnames.
 export const MAX_BIJLAGE_BYTES = 4 * 1024 * 1024;
 
 export interface GekozenBijlage {
   naam: string;
-  data: string; // base64
+  url: string; // Vercel Blob-URL, na upload
   type: string; // mime
 }
 
-// Lees een gekozen bestand als base64 — native via expo-file-system, web via FileReader.
-async function leesBase64(uri: string): Promise<string> {
-  if (Platform.OS === "web") {
-    const resp = await fetch(uri);
-    const blob = await resp.blob();
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = String(reader.result);
-        resolve(result.split(",")[1] ?? "");
-      };
-      reader.onerror = () => reject(new Error("bijlage-lezen-mislukt"));
-      reader.readAsDataURL(blob);
-    });
+// Upload één bestand naar /api/bijlage-upload en geef de Blob-URL terug.
+// Web levert via DocumentPicker een echt File-object (asset.file); native
+// levert alleen een uri, en fetch/FormData accepteert daar een
+// {uri, name, type}-object voor.
+async function uploadBijlage(asset: DocumentPicker.DocumentPickerAsset, naam: string, type: string): Promise<string> {
+  const form = new FormData();
+  if (Platform.OS === "web" && asset.file) {
+    form.append("file", asset.file, naam);
+  } else {
+    form.append("file", { uri: asset.uri, name: naam, type } as unknown as Blob);
   }
-  // Native: dynamische require zodat web dit niet hoeft te bundelen
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const FileSystem = require("expo-file-system/legacy");
-  return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+
+  const token = getAuthToken();
+  const res = await fetch(`${getApiUrl()}/api/bijlage-upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  if (!res.ok) throw new Error(`upload mislukt (${res.status})`);
+  const data = (await res.json()) as { url: string };
+  return data.url;
 }
 
-// Opent de bestandskiezer en leest het bestand als base64.
+// Opent de bestandskiezer en uploadt het gekozen bestand meteen naar Blob.
 // De foutmelding komt terug als vertaalsleutel; het scherm dat dit aanroept
 // heeft useT() en zet er de tekst van de gekozen taal bij.
 export async function pickBijlage(): Promise<{ bijlage?: GekozenBijlage; fout?: Sleutel }> {
@@ -47,17 +52,13 @@ export async function pickBijlage(): Promise<{ bijlage?: GekozenBijlage; fout?: 
   if (asset.size && asset.size > MAX_BIJLAGE_BYTES) {
     return { fout: "c_bestand_te_groot" };
   }
+  const naam = asset.name ?? "bijlage";
+  const type = asset.mimeType ?? "application/octet-stream";
   try {
-    const data = await leesBase64(asset.uri);
-    return {
-      bijlage: {
-        naam: asset.name ?? "bijlage",
-        data,
-        type: asset.mimeType ?? "application/octet-stream",
-      },
-    };
+    const url = await uploadBijlage(asset, naam, type);
+    return { bijlage: { naam, url, type } };
   } catch {
-    return { fout: "c_kon_bestand_niet_lezen" };
+    return { fout: "c_upload_mislukt" };
   }
 }
 

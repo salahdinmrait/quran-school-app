@@ -78,7 +78,7 @@ export default function DocentCijfers() {
           leerlingId, vakId, waarde,
           omschrijving: omschrijving || null,
           opmerking: opmerking || null,
-          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageData: bijlage.data, bijlageType: bijlage.type } : {}),
+          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageUrl: bijlage.url, bijlageType: bijlage.type } : {}),
         }),
       });
       setWaarde(""); setOmschrijving(""); setOpmerking(""); setBijlage(null); setLeerlingIds([]);

@@ -176,6 +176,7 @@ export const ar: Record<Sleutel, string> = {
   c_er_ging_iets_mis: "حدث خطأ ما",
   c_kon_bestand_niet_lezen: "تعذّرت قراءة الملف.",
   c_bestand_te_groot: "الملف كبير جدًا (4 ميغابايت كحد أقصى).",
+  c_upload_mislukt: "فشل رفع المرفق. حاول مرة أخرى.",
   c_uitloggen_vraag: "هل تريد بالتأكيد تسجيل الخروج؟",
   c_geen_personen_gevonden: "لم يتم العثور على أشخاص.",
   c_kies_datum: "اختر تاريخًا",

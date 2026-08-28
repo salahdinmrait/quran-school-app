@@ -188,7 +188,7 @@ export function LesDetail({
       };
       if (nieuweBijlage) {
         body.bijlageNaam = nieuweBijlage.naam;
-        body.bijlageData = nieuweBijlage.data;
+        body.bijlageUrl = nieuweBijlage.url;
         body.bijlageType = nieuweBijlage.type;
       } else if (bijlageWeg) {
         body.bijlageNaam = null;

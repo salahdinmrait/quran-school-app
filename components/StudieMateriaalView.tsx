@@ -72,7 +72,7 @@ export function StudieMateriaalView({ canManage }: { canManage: boolean }) {
           linkUrl: linkUrl || null,
           klasId: klasId || null,
           vakId: vakId || null,
-          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageData: bijlage.data, bijlageType: bijlage.type } : {}),
+          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageUrl: bijlage.url, bijlageType: bijlage.type } : {}),
         }),
       });
       setTitel(""); setBeschrijving(""); setLinkUrl(""); setKlasId(null); setVakId(null); setBijlage(null);

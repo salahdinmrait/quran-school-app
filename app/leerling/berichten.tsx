@@ -145,7 +145,7 @@ export default function LeerlingBerichten() {
           inhoud: inhoud.trim(),
           doelType: "GEBRUIKERS",
           doelIds: contactIds,
-          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageData: bijlage.data, bijlageType: bijlage.type } : {}),
+          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageUrl: bijlage.url, bijlageType: bijlage.type } : {}),
         }),
       });
       setSent(t("lb_verstuurd"));

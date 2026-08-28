@@ -78,7 +78,7 @@ export default function DocentHuiswerkNieuw() {
           lesId,
           // Een lege lijst betekent: voor de hele klas.
           ...(doelgroep === "LEERLINGEN" && leerlingIds.length > 0 ? { leerlingIds } : {}),
-          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageData: bijlage.data, bijlageType: bijlage.type } : {}),
+          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageUrl: bijlage.url, bijlageType: bijlage.type } : {}),
         }),
       });
       router.back();

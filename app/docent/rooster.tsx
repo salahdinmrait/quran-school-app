@@ -60,7 +60,7 @@ export default function DocentRooster() {
           klasId, vakId: vakId || null, datum, begintijd, eindtijd,
           lokaal: lokaal || null,
           beschrijving: beschrijving || null,
-          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageData: bijlage.data, bijlageType: bijlage.type } : {}),
+          ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageUrl: bijlage.url, bijlageType: bijlage.type } : {}),
           ...(herhalenTot ? { herhalen: { totDatum: herhalenTot } } : {}),
         }),
       });

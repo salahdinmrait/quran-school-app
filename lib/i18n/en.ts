@@ -175,6 +175,7 @@ export const en: Record<Sleutel, string> = {
   c_er_ging_iets_mis: "Something went wrong",
   c_kon_bestand_niet_lezen: "Could not read the file.",
   c_bestand_te_groot: "File is too large (max 4 MB).",
+  c_upload_mislukt: "Uploading the attachment failed. Please try again.",
   c_uitloggen_vraag: "Are you sure you want to log out?",
   c_geen_personen_gevonden: "No people found.",
   c_kies_datum: "Pick a date",

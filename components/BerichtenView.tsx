@@ -197,7 +197,7 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
       const body: Record<string, unknown> = {
         onderwerp: onderwerp.trim(),
         inhoud: inhoud.trim(),
-        ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageData: bijlage.data, bijlageType: bijlage.type } : {}),
+        ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageUrl: bijlage.url, bijlageType: bijlage.type } : {}),
       };
       if (isBeheer) {
         body.doelType = "ADMINS";
