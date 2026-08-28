@@ -29,7 +29,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/jadwal-seal.png",
       "bundler": "metro",
       "output": "single",
       "lang": "nl"
