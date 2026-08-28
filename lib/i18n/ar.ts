@@ -293,6 +293,11 @@ export const ar: Record<Sleutel, string> = {
   dos_geen: "لا توجد ملاحظات في هذا الملف بعد.",
   dos_verwijderen_titel: "حذف الملاحظة",
   dos_verwijderen_vraag: "هل تريد حذف هذه الملاحظة؟",
+  dos_klassen_vakken: "الفصول والمواد",
+  dos_geen_klassen: "لم يُسجل هذا الطالب في أي فصل بعد.",
+  dos_geschiedenis: "سجل الحضور",
+  dos_toon_alles: "عرض جميع الدروس ({count})",
+  dos_toon_minder: "عرض أقل",
 
   // --- Leerling - aanwezigheid en cijfers ---
   c_bijlage: "مرفق",

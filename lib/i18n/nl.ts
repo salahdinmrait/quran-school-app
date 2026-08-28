@@ -291,6 +291,11 @@ export const nl = {
   dos_geen: "Nog geen notities in dit dossier.",
   dos_verwijderen_titel: "Notitie verwijderen",
   dos_verwijderen_vraag: "Deze notitie verwijderen?",
+  dos_klassen_vakken: "Klassen en vakken",
+  dos_geen_klassen: "Deze leerling zit nog niet in een klas.",
+  dos_geschiedenis: "Aanwezigheidsgeschiedenis",
+  dos_toon_alles: "Toon alle {count} lessen",
+  dos_toon_minder: "Toon minder",
 
   // --- Leerling - aanwezigheid en cijfers ---
   c_bijlage: "Bijlage",

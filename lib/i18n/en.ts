@@ -292,6 +292,11 @@ export const en: Record<Sleutel, string> = {
   dos_geen: "No notes in this file yet.",
   dos_verwijderen_titel: "Delete note",
   dos_verwijderen_vraag: "Delete this note?",
+  dos_klassen_vakken: "Classes and subjects",
+  dos_geen_klassen: "This student is not in a class yet.",
+  dos_geschiedenis: "Attendance history",
+  dos_toon_alles: "Show all {count} lessons",
+  dos_toon_minder: "Show less",
 
   // --- Leerling - aanwezigheid en cijfers ---
   c_bijlage: "Attachment",
