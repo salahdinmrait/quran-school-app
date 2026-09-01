@@ -5,16 +5,18 @@ import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useT } from "../lib/LanguageContext";
 import { row, textStart } from "../lib/rtl";
-import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipSelect } from "./ui";
+import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, ChipMultiSelect } from "./ui";
 import { PersonPicker, Persoon } from "./PersonPicker";
 import { LinkText } from "./LinkText";
 import { pickBijlage, openAttachment, GekozenBijlage } from "../lib/bijlage";
 import { colors } from "../lib/theme";
 import { fmtDatumTijd } from "../lib/format";
 
-// Gedeeld berichten-scherm voor DOCENT en ADMIN — zelfde opties als de site:
-// specifieke leerling(en)/ouder(s)/docent(en) met multi-select, of hele klas
-// (leerlingen dan wel ouders). Inbox en verzonden tonen volledige threads.
+// Gedeeld berichten-scherm voor DOCENT en ADMIN. De ontvangers van een nieuw
+// bericht zijn vrij samen te stellen: meerdere groepen (leerlingen of ouders
+// van een klas, alle docenten, het beheer) en daarnaast losse personen, in
+// één bericht. De server telt ze op, ontdubbelt en laat de verzender zelf
+// weg. Inbox en verzonden tonen volledige threads.
 
 interface ThreadMessage {
   id: string;
@@ -47,26 +49,48 @@ interface BerichtUit {
   replies: ThreadMessage[];
 }
 
-interface TargetKlas {
+interface DoelPersoon {
   id: string;
-  naam: string;
-  leerlingen: { id: string; name: string; email: string }[];
-  ouders: { id: string; name: string; email: string; kindNaam: string }[];
+  name: string;
+  email: string;
 }
 
-// /api/docent/klassen geeft een array; /api/admin/berichten-data geeft
-// { klassen, docenten }.
-type TargetsResponse = TargetKlas[] | { klassen: TargetKlas[]; docenten: { id: string; name: string; email: string }[] };
+interface DoelOuder extends DoelPersoon {
+  /** Alle kinderen van deze ouder, als één regel. */
+  kindNaam: string;
+}
+
+interface DoelKlas {
+  id: string;
+  naam: string;
+  leerlingen: DoelPersoon[];
+  ouders: DoelOuder[];
+}
+
+// /api/berichten/doelen — alles waar deze verzender naartoe mag.
+interface DoelenResponse {
+  klassen: DoelKlas[];
+  docenten: DoelPersoon[];
+  admins: DoelPersoon[];
+}
 
 type Tab = "inbox" | "verzonden" | "nieuw";
-type DoelType = "LEERLINGEN" | "OUDERS" | "DOCENTEN" | "BEHEER" | "KLAS_LEERLINGEN" | "KLAS_OUDERS";
 
-export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) {
+/** Een groepskeuze zoals de server hem verwacht, plus wie erin zit (voor het totaal). */
+interface GroepOptie {
+  key: string;
+  label: string;
+  soort: "KLAS_LEERLINGEN" | "KLAS_OUDERS" | "ALLE_DOCENTEN" | "ADMINS";
+  id?: string;
+  leden: string[];
+}
+
+export function BerichtenView() {
   const { user } = useAuth();
   const { t, tel, isRTL, label } = useT();
   const { data, setData, error, loading, refreshing, refresh, reload } =
     useFetch<{ inbox: BerichtIn[]; verzonden: BerichtUit[] }>("/api/berichten");
-  const targets = useFetch<TargetsResponse>(targetsEndpoint);
+  const targets = useFetch<DoelenResponse>("/api/berichten/doelen");
 
   const [tab, setTab] = useState<Tab>("inbox");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -74,57 +98,107 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
-  // Compose state
-  const [doelType, setDoelType] = useState<DoelType>("LEERLINGEN");
-  const [klasId, setKlasId] = useState<string | null>(null);
+  // Compose state: groepen en losse personen naast elkaar
+  const [groepen, setGroepen] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [onderwerp, setOnderwerp] = useState("");
   const [inhoud, setInhoud] = useState("");
   const [bijlage, setBijlage] = useState<GekozenBijlage | null>(null);
   const [sent, setSent] = useState<string | null>(null);
 
-  const klassen: TargetKlas[] = useMemo(
-    () => (Array.isArray(targets.data) ? targets.data : targets.data?.klassen ?? []),
-    [targets.data]
-  );
-  const docenten = useMemo(
-    () => (Array.isArray(targets.data) ? [] : targets.data?.docenten ?? []),
-    [targets.data]
-  );
-  const isAdmin = user?.role === "ADMIN";
+  const klassen = useMemo(() => targets.data?.klassen ?? [], [targets.data]);
+  const docenten = useMemo(() => targets.data?.docenten ?? [], [targets.data]);
+  const admins = useMemo(() => targets.data?.admins ?? [], [targets.data]);
 
-  // Alle unieke personen over alle klassen heen (zoals op de site). Het
-  // e-mailadres gaat mee zodat de zoekbalk er ook op kan zoeken.
-  const allePersonen = useMemo<Persoon[]>(() => {
-    if (doelType === "DOCENTEN") {
-      return docenten.map((d) => ({ id: d.id, name: d.name, email: d.email, extra: d.email }));
-    }
-    const map = new Map<string, Persoon>();
+  // De groepen die aangevinkt kunnen worden. `leden` staat erbij zodat het
+  // totaal aantal ontvangers klopt zonder de server te vragen.
+  const groepOpties = useMemo<GroepOptie[]>(() => {
+    const opties: GroepOptie[] = [];
     for (const k of klassen) {
-      if (doelType === "LEERLINGEN") {
-        for (const l of k.leerlingen)
-          if (!map.has(l.id)) map.set(l.id, { id: l.id, name: l.name, email: l.email, extra: `${k.naam} · ${l.email}` });
-      } else if (doelType === "OUDERS") {
-        for (const o of k.ouders)
-          if (!map.has(o.id))
-            map.set(o.id, {
-              id: o.id,
-              name: o.name,
-              email: o.email,
-              extra: `${t("c_ouder")} · ${o.kindNaam} · ${o.email}`,
-            });
+      opties.push({
+        key: `kl:${k.id}`,
+        label: t("br_klas_lln_optie", { klas: k.naam, count: k.leerlingen.length }),
+        soort: "KLAS_LEERLINGEN",
+        id: k.id,
+        leden: k.leerlingen.map((l) => l.id),
+      });
+      if (k.ouders.length > 0) {
+        opties.push({
+          key: `ko:${k.id}`,
+          label: t("br_klas_ouders_optie", { klas: k.naam, count: k.ouders.length }),
+          soort: "KLAS_OUDERS",
+          id: k.id,
+          leden: k.ouders.map((o) => o.id),
+        });
       }
     }
+    if (docenten.length > 0) {
+      opties.push({
+        key: "docenten",
+        label: t("br_groep_docenten", { count: docenten.length }),
+        soort: "ALLE_DOCENTEN",
+        leden: docenten.map((d) => d.id),
+      });
+    }
+    if (admins.length > 0) {
+      opties.push({
+        key: "admins",
+        label: t("br_groep_beheer", { count: admins.length }),
+        soort: "ADMINS",
+        leden: admins.map((a) => a.id),
+      });
+    }
+    return opties;
+  }, [klassen, docenten, admins, t]);
+
+  // Alle personen door elkaar: leerlingen, ouders, docenten en beheer. De rol
+  // en de klas staan in de extra regel, waar de zoekbalk ook op zoekt.
+  const allePersonen = useMemo<Persoon[]>(() => {
+    const map = new Map<string, Persoon>();
+    for (const k of klassen) {
+      for (const l of k.leerlingen)
+        if (!map.has(l.id))
+          map.set(l.id, {
+            id: l.id,
+            name: l.name,
+            email: l.email,
+            extra: `${label("rol", "LEERLING")} · ${k.naam} · ${l.email}`,
+          });
+      for (const o of k.ouders)
+        if (!map.has(o.id))
+          map.set(o.id, {
+            id: o.id,
+            name: o.name,
+            email: o.email,
+            extra: `${t("c_ouder")} · ${o.kindNaam} · ${o.email}`,
+          });
+    }
+    for (const d of docenten)
+      if (!map.has(d.id))
+        map.set(d.id, { id: d.id, name: d.name, email: d.email, extra: `${label("rol", "DOCENT")} · ${d.email}` });
+    for (const a of admins)
+      if (!map.has(a.id))
+        map.set(a.id, { id: a.id, name: a.name, email: a.email, extra: `${label("rol", "ADMIN")} · ${a.email}` });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [doelType, klassen, docenten, t]);
+  }, [klassen, docenten, admins, t, label]);
+
+  // Wat de ontvangst oplevert: groepen plus losse personen, ontdubbeld en
+  // zonder jezelf — dezelfde rekensom die de server maakt.
+  const totaalOntvangers = useMemo(() => {
+    const ids = new Set(selectedIds);
+    for (const key of groepen) {
+      const g = groepOpties.find((o) => o.key === key);
+      if (g) for (const id of g.leden) ids.add(id);
+    }
+    if (user) ids.delete(user.id);
+    return ids.size;
+  }, [groepen, selectedIds, groepOpties, user]);
 
   if (loading) return <Loading />;
   if (error) return <ErrorView message={error} onRetry={reload} />;
 
   const inbox = data?.inbox ?? [];
   const verzonden = data?.verzonden ?? [];
-  const isKlasBroadcast = doelType === "KLAS_LEERLINGEN" || doelType === "KLAS_OUDERS";
-  const isBeheer = doelType === "BEHEER";
 
   async function kiesBijlage() {
     setSendError(null);
@@ -199,25 +273,22 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
         inhoud: inhoud.trim(),
         ...(bijlage ? { bijlageNaam: bijlage.naam, bijlageUrl: bijlage.url, bijlageType: bijlage.type } : {}),
       };
-      if (isBeheer) {
-        body.doelType = "ADMINS";
-      } else if (isKlasBroadcast) {
-        if (!klasId) {
-          setSendError(t("br_kies_klas"));
-          setSending(false);
-          return;
-        }
-        body.doelType = doelType;
-        body.doelId = klasId;
-      } else {
-        if (selectedIds.length === 0) {
-          setSendError(t("br_kies_ontvanger"));
-          setSending(false);
-          return;
-        }
-        body.doelType = "GEBRUIKERS";
-        body.doelIds = selectedIds;
+      // Groepen en personen gaan als één lijst mee; de server lost elk doel
+      // apart op en controleert daarbij opnieuw of het mag.
+      const doelen = [
+        ...groepen
+          .map((key) => groepOpties.find((o) => o.key === key))
+          .filter((g): g is GroepOptie => !!g)
+          .map((g) => ({ soort: g.soort, ...(g.id ? { id: g.id } : {}) })),
+        ...selectedIds.map((id) => ({ soort: "GEBRUIKER" as const, id })),
+      ];
+      if (doelen.length === 0) {
+        setSendError(t("br_kies_ontvanger"));
+        setSending(false);
+        return;
       }
+      body.doelType = "SAMENGESTELD";
+      body.doelen = doelen;
       const res = await api<{ count: number }>("/api/berichten", {
         method: "POST",
         body: JSON.stringify(body),
@@ -227,6 +298,7 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
       setInhoud("");
       setBijlage(null);
       setSelectedIds([]);
+      setGroepen([]);
       refresh();
     } catch (e) {
       setSendError(e instanceof ApiError ? e.message : t("c_versturen_mislukt"));
@@ -234,16 +306,6 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
       setSending(false);
     }
   }
-
-  const doelOptions: { value: DoelType; label: string }[] = [
-    { value: "LEERLINGEN", label: t("br_doel_leerlingen") },
-    { value: "OUDERS", label: t("br_doel_ouders") },
-    ...(isAdmin
-      ? [{ value: "DOCENTEN" as DoelType, label: t("br_doel_docenten") }]
-      : [{ value: "BEHEER" as DoelType, label: t("br_doel_beheer") }]),
-    { value: "KLAS_LEERLINGEN", label: t("br_doel_klas_leerlingen") },
-    { value: "KLAS_OUDERS", label: t("br_doel_klas_ouders") },
-  ];
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh}>
@@ -378,60 +440,37 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
 
       {tab === "nieuw" && (
         <Card>
-          <ChipSelect<DoelType>
-            label={t("br_versturen_naar")}
-            options={doelOptions}
-            value={doelType}
-            onChange={(v) => {
-              setDoelType(v);
-              setSelectedIds([]);
-              setKlasId(null);
-            }}
+          {/* Groepen en losse personen mogen door elkaar; alles bij elkaar
+              vormt de ontvangerslijst. */}
+          <ChipMultiSelect
+            label={t("br_groepen")}
+            options={groepOpties.map((g) => ({ value: g.key, label: g.label }))}
+            value={groepen}
+            onChange={setGroepen}
           />
 
-          {isBeheer ? (
-            <Muted style={{ marginBottom: 8 }}>{t("br_naar_beheer")}</Muted>
-          ) : isKlasBroadcast ? (
-            <ChipSelect
-              label={t("c_klas")}
-              options={klassen.map((k) => ({
-                value: k.id,
-                label:
-                  doelType === "KLAS_OUDERS"
-                    ? t("br_klas_ouders_optie", { klas: k.naam, count: k.ouders.length })
-                    : t("br_klas_lln_optie", { klas: k.naam, count: k.leerlingen.length }),
-              }))}
-              value={klasId}
-              onChange={setKlasId}
-            />
-          ) : (
-            <View style={styles.selectBox}>
-              <View style={[styles.selectHeader, { flexDirection: row(isRTL) }]}>
-                <Text style={[styles.selectLabel, { textAlign: textStart(isRTL) }]}>
-                  {t("br_ontvangers_n", { count: selectedIds.length })}
+          <View style={styles.selectBox}>
+            <View style={[styles.selectHeader, { flexDirection: row(isRTL) }]}>
+              <Text style={[styles.selectLabel, { textAlign: textStart(isRTL) }]}>
+                {t("br_personen_n", { count: selectedIds.length })}
+              </Text>
+              {selectedIds.length > 0 && (
+                <Text style={styles.selectAction} onPress={() => setSelectedIds([])}>
+                  {t("br_selectie_wissen")}
                 </Text>
-                {selectedIds.length > 0 && (
-                  <Text style={styles.selectAction} onPress={() => setSelectedIds([])}>
-                    {t("br_selectie_wissen")}
-                  </Text>
-                )}
-              </View>
-              {/* Losse personen kiezen gaat via de zoekbalk; hele klassen
-                  blijven via "Versturen naar" hierboven. */}
-              <PersonPicker
-                personen={allePersonen}
-                geselecteerd={selectedIds}
-                onChange={setSelectedIds}
-                leegTekst={
-                  doelType === "OUDERS"
-                    ? t("br_geen_ouders")
-                    : doelType === "DOCENTEN"
-                    ? t("br_geen_docenten")
-                    : t("br_geen_leerlingen")
-                }
-              />
+              )}
             </View>
-          )}
+            <PersonPicker
+              personen={allePersonen}
+              geselecteerd={selectedIds}
+              onChange={setSelectedIds}
+              leegTekst={t("br_geen_personen")}
+            />
+          </View>
+
+          <Muted style={{ marginBottom: 8 }}>
+            {t("br_totaal_ontvangers", { count: totaalOntvangers })}
+          </Muted>
 
           <Input label={t("c_onderwerp")} value={onderwerp} onChangeText={setOnderwerp} placeholder={t("c_onderwerp")} />
           <Input label={t("c_bericht")} value={inhoud} onChangeText={setInhoud} multiline placeholder={t("br_bericht_ph")} />
@@ -453,10 +492,7 @@ export function BerichtenView({ targetsEndpoint }: { targetsEndpoint: string }) 
             title={t("c_versturen")}
             onPress={sendNieuw}
             loading={sending}
-            disabled={
-              !onderwerp.trim() || !inhoud.trim() ||
-              (isBeheer ? false : isKlasBroadcast ? !klasId : selectedIds.length === 0)
-            }
+            disabled={!onderwerp.trim() || !inhoud.trim() || totaalOntvangers === 0}
           />
         </Card>
       )}

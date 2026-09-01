@@ -29,7 +29,7 @@ interface Les {
     beschrijving: string | null;
     hasBijlage: boolean;
     vak: { id: string; naam: string };
-    inleveringen: { id: string }[];
+    inleveringen: { id: string; afgevinktOp: string | null }[];
   }[];
 }
 
@@ -70,7 +70,7 @@ export default function LeerlingRooster() {
             <Text style={styles.hwDot}>•</Text>
             <Text style={[styles.hwText, { textAlign: textStart(isRTL) }]}>
               {hw.titel}
-              {hw.inleveringen.length > 0 ? "  ✓" : ""}
+              {hw.inleveringen.some((i) => i.afgevinktOp) ? "  ✓" : ""}
             </Text>
           </View>
         ))}

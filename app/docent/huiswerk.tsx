@@ -10,7 +10,7 @@ import { Screen, Loading, ErrorView, Card, Badge, Muted, Empty, Button, Input, C
 import { LinkText } from "../../components/LinkText";
 import { openAttachment } from "../../lib/bijlage";
 import { colors } from "../../lib/theme";
-import { fmtDatum } from "../../lib/format";
+import { fmtDatum, fmtDatumTijd } from "../../lib/format";
 import type { DocentKlas } from "./klassen";
 
 interface RankingItem {
@@ -35,6 +35,9 @@ interface Inlevering {
   opmerking: string | null;
   bijlageNaam: string | null;
   hasBijlage: boolean;
+  // Twee losse momenten: de leerling levert in, de docent tekent af.
+  ingeleverdOp: string | null;
+  afgevinktOp: string | null;
   leerling: { id: string; name: string };
 }
 
@@ -193,7 +196,13 @@ export default function DocentHuiswerk() {
         huiswerk.map((h) => {
           const expanded = openId === h.id;
           const leerlingen = leerlingenVoor(h);
-          const doneIds = new Set(h.inleveringen.map((i) => i.leerling.id));
+          const doneIds = new Set(
+            h.inleveringen.filter((i) => i.afgevinktOp).map((i) => i.leerling.id)
+          );
+          // Ingeleverd maar nog niet afgetekend: dat wacht op de docent.
+          const teBeoordelen = h.inleveringen.filter(
+            (i) => i.ingeleverdOp && !i.afgevinktOp
+          ).length;
           return (
             <Card key={h.id}>
               {/* Alleen de kop-rij toggle't — anders klapt de kaart op web dicht bij klikken in het opmerking-veld */}
@@ -207,11 +216,20 @@ export default function DocentHuiswerk() {
                       : ""}
                   </Muted>
                 </View>
-                <Badge
-                  text={`${doneIds.size}/${leerlingen.length}`}
-                  bg={doneIds.size === leerlingen.length && leerlingen.length > 0 ? colors.successLight : colors.warningLight}
-                  fg={doneIds.size === leerlingen.length && leerlingen.length > 0 ? colors.primaryDark : colors.warning}
-                />
+                <View style={styles.badgeKolom}>
+                  <Badge
+                    text={`${doneIds.size}/${leerlingen.length}`}
+                    bg={doneIds.size === leerlingen.length && leerlingen.length > 0 ? colors.successLight : colors.warningLight}
+                    fg={doneIds.size === leerlingen.length && leerlingen.length > 0 ? colors.primaryDark : colors.warning}
+                  />
+                  {teBeoordelen > 0 ? (
+                    <Badge
+                      text={t("dh_n_ingeleverd", { count: teBeoordelen })}
+                      bg={colors.infoLight}
+                      fg={colors.info}
+                    />
+                  ) : null}
+                </View>
               </Pressable>
 
               {expanded && (
@@ -236,7 +254,9 @@ export default function DocentHuiswerk() {
                   ) : (
                     leerlingen.map((l) => {
                       const inlevering = h.inleveringen.find((i) => i.leerling.id === l.id);
-                      const done = !!inlevering;
+                      // Afgevinkt is iets anders dan ingeleverd; de knop volgt
+                      // alleen het afvinken.
+                      const done = !!inlevering?.afgevinktOp;
                       const isBusy = busy === `${h.id}_${l.id}`;
                       return (
                         <View key={l.id} style={styles.leerlingBlock}>
@@ -252,6 +272,14 @@ export default function DocentHuiswerk() {
                           </View>
                           {inlevering && (
                             <View style={styles.opmerkingArea}>
+                              {inlevering.ingeleverdOp ? (
+                                <Muted>
+                                  {t("dh_ingeleverd_op", {
+                                    moment: fmtDatumTijd(inlevering.ingeleverdOp),
+                                  })}
+                                  {done ? "" : ` · ${t("dh_wacht_op_afvinken")}`}
+                                </Muted>
+                              ) : null}
                               {inlevering.inhoud && inlevering.inhoud !== "✓" ? (
                                 <View style={styles.inleverBox}>
                                   <Muted>{t("dh_antwoord")}</Muted>
@@ -321,6 +349,7 @@ export default function DocentHuiswerk() {
 }
 
 const styles = StyleSheet.create({
+  badgeKolom: { alignItems: "flex-end", gap: 4 },
   row: { alignItems: "center", gap: 6, flexWrap: "wrap" },
   title: { fontSize: 15, fontWeight: "600", color: colors.text },
   detail: { marginTop: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },

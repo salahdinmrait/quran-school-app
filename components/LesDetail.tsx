@@ -41,8 +41,9 @@ export interface LesHuiswerk {
   beschrijving: string | null;
   hasBijlage: boolean;
   vak: { id: string; naam: string };
-  // Eén rij per leerling die de docent heeft afgevinkt.
-  inleveringen: { id: string }[];
+  // Eén rij per leerling die iets heeft ingeleverd of is afgevinkt.
+  // `afgevinktOp` gevuld = de docent heeft afgetekend.
+  inleveringen: { id: string; afgevinktOp?: string | null }[];
 }
 
 interface AanwezigheidRecord {
@@ -60,23 +61,37 @@ interface AanwezigheidRecord {
 // aanwezigheidsknoppen en zonder gevarenzone. Het huiswerk komt dan mee uit de
 // roosterlijst (`huiswerkVooraf`), want de docent-API is voor een leerling
 // terecht afgesloten.
+//
+// Een ouder ziet exact diezelfde alleen-lezen weergave, maar dan voor één kind:
+// `kindNaam` en `aanwezigheidStatus` vertellen om wie het gaat en of het kind
+// er was.
 export function LesDetail({
   les,
   rol,
   huiswerkVooraf,
+  kindNaam,
+  aanwezigheidStatus,
   onSluiten,
   onGewijzigd,
 }: {
   les: Les;
-  rol: "ADMIN" | "DOCENT" | "LEERLING";
+  rol: "ADMIN" | "DOCENT" | "LEERLING" | "OUDER";
   huiswerkVooraf?: LesHuiswerk[];
+  /** Alleen in de ouderweergave: over welk kind gaat deze les. */
+  kindNaam?: string;
+  /** Alleen in de ouderweergave: aanwezigheid van dat kind bij deze les. */
+  aanwezigheidStatus?: string | null;
   onSluiten: () => void;
   onGewijzigd: () => void | Promise<void>;
 }) {
   const router = useRouter();
   const { t, isRTL } = useT();
   const isDocent = rol === "DOCENT";
-  const isLeerling = rol === "LEERLING";
+  const isOuder = rol === "OUDER";
+  // Leerling en ouder krijgen dezelfde alleen-lezen weergave.
+  const isAlleenLezen = rol === "LEERLING" || isOuder;
+  // Alleen een bekende status krijgt een badge; zo blijft de vertaalsleutel getypeerd.
+  const kindStatus = STATUSES.find((s) => s === aanwezigheidStatus);
   const leerlingen = les.klas.leerlingen ?? [];
 
   const [datum, setDatum] = useState(les.datum.slice(0, 10));
@@ -242,19 +257,39 @@ export function LesDetail({
           {les.docenten && les.docenten.length > 0 ? (
             <Muted>{les.docenten.map((d) => d.name).join(", ")}</Muted>
           ) : null}
+          {isOuder && kindNaam ? (
+            <View style={[styles.kindRij, { flexDirection: row(isRTL) }]}>
+              <Text style={[styles.kindNaam, { textAlign: textStart(isRTL) }]}>{kindNaam}</Text>
+              {kindStatus ? (
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor: STATUS_COLORS[kindStatus].bg,
+                      borderColor: STATUS_COLORS[kindStatus].fg,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.statusBadgeTekst, { color: STATUS_COLORS[kindStatus].fg }]}>
+                    {t(`status_${kindStatus}`)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
         </View>
         <Button title={t("c_sluiten")} variant="secondary" small onPress={onSluiten} />
       </View>
 
       {error && <Text style={[styles.error, { textAlign: textStart(isRTL) }]}>{error}</Text>}
 
-      {(isDocent || isLeerling) && (
+      {(isDocent || isAlleenLezen) && (
         <>
           <Text style={[styles.sectie, { textAlign: textStart(isRTL) }]}>{t("ld_huiswerk_bij_les")}</Text>
           <Card>
             {huiswerk.length === 0 ? (
               <Muted>
-                {isLeerling ? t("ld_geen_huiswerk_leerling") : t("ld_geen_huiswerk_docent")}
+                {isAlleenLezen ? t("ld_geen_huiswerk_leerling") : t("ld_geen_huiswerk_docent")}
               </Muted>
             ) : (
               huiswerk.map((h) => (
@@ -268,9 +303,13 @@ export function LesDetail({
                   <Muted>
                     {h.vak.naam}
                     {isDocent
-                      ? ` · ${t("ld_n_afgevinkt", { count: h.inleveringen.length })}`
-                      : h.inleveringen.length > 0
+                      ? ` · ${t("ld_n_afgevinkt", {
+                          count: h.inleveringen.filter((i) => i.afgevinktOp).length,
+                        })}`
+                      : h.inleveringen.some((i) => i.afgevinktOp)
                       ? ` · ${t("ld_afgevinkt_door_docent")}`
+                      : h.inleveringen.length > 0
+                      ? ` · ${t("ld_ingeleverd_wacht")}`
                       : ""}
                   </Muted>
                   {h.beschrijving ? (
@@ -345,7 +384,7 @@ export function LesDetail({
         </>
       )}
 
-      {isLeerling ? (
+      {isAlleenLezen ? (
         <>
           <Text style={[styles.sectie, { textAlign: textStart(isRTL) }]}>{t("ld_lesgegevens")}</Text>
           <Card>
@@ -450,6 +489,10 @@ const styles = StyleSheet.create({
   hwTekst: { fontSize: 13, color: colors.text, marginTop: 4 },
   link: { color: colors.info, fontSize: 13, textDecorationLine: "underline", marginTop: 6 },
   leerling: { fontSize: 15, fontFamily: fonts.display, color: colors.text, marginBottom: 8 },
+  kindRij: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  kindNaam: { fontSize: 13, fontFamily: fonts.displayMedium, color: colors.text },
+  statusBadge: { borderRadius: radius.button, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
+  statusBadgeTekst: { fontSize: 11, fontFamily: fonts.bodyMedium },
   statusRij: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   statusChip: {
     borderRadius: radius.button,

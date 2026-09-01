@@ -48,7 +48,10 @@ export function PersonPicker({
     ? kiesbaar.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
-          (p.email ?? "").toLowerCase().includes(q)
+          (p.email ?? "").toLowerCase().includes(q) ||
+          // De extra regel bevat rol en klas; daar mag ook op gezocht worden,
+          // anders is "docent" of "klas 1" geen bruikbare zoekterm.
+          (p.extra ?? "").toLowerCase().includes(q)
       )
     : [];
   const treffers = alleTreffers.slice(0, MAX_TREFFERS);

@@ -266,6 +266,47 @@ export function ChipSelect<T extends string>({
   );
 }
 
+// Zelfde chips, maar meerdere tegelijk aan te zetten. Tikken togglet; de
+// volgorde van de selectie is die van de opties, niet die van het aantikken.
+export function ChipMultiSelect<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label?: string;
+  options: { value: T; label: string }[];
+  value: T[];
+  onChange: (v: T[]) => void;
+}) {
+  const { isRTL } = useT();
+  return (
+    <View style={styles.inputWrap}>
+      {label ? <Text style={[styles.inputLabel, { textAlign: textStart(isRTL) }]}>{label}</Text> : null}
+      <View style={[styles.chipRow, { flexDirection: row(isRTL) }]}>
+        {options.map((o) => {
+          const aan = value.includes(o.value);
+          return (
+            <Pressable
+              key={o.value}
+              onPress={() =>
+                onChange(
+                  aan ? value.filter((v) => v !== o.value) : [...value, o.value]
+                )
+              }
+              style={[styles.chip, aan && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, aan && styles.chipTextActive]}>
+                {aan ? `✓ ${o.label}` : o.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ── CheckRow (multi-select rij met checkbox) ─────────────────────────────────
 
 export function CheckRow({
