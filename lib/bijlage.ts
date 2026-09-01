@@ -24,6 +24,29 @@ interface UploadOpdracht {
 }
 
 /**
+ * Een mislukte upload met een bruikbare melding erbij.
+ *
+ * De aanroeper krijgt alleen `sleutel` te zien; `message` bevat de technische
+ * reden (statuscode, serverantwoord) en gaat naar de console. Zonder dat laatste
+ * is een upload die stukloopt niet te onderscheiden van een die geweigerd wordt.
+ */
+class UploadFout extends Error {
+  sleutel: Sleutel;
+  constructor(sleutel: Sleutel, reden: string) {
+    super(reden);
+    this.sleutel = sleutel;
+  }
+}
+
+function sleutelBijStatus(status: number, antwoord: string): Sleutel {
+  if (status === 401 || status === 403) return "c_upload_geen_toegang";
+  if (status === 413) return "c_bestand_te_groot";
+  if (status === 429) return "c_te_veel_uploads";
+  if (status === 400 && /type/i.test(antwoord)) return "c_bestandstype_niet_toegestaan";
+  return "c_upload_mislukt";
+}
+
+/**
  * Uploadt één bestand in twee stappen.
  *
  * 1. Onze API keurt naam, type en grootte en geeft een kortlevende PUT-URL
@@ -49,26 +72,42 @@ async function uploadBijlage(
     },
     body: JSON.stringify({ naam, type, grootte }),
   });
-  if (!res.ok) throw new Error(`upload voorbereiden mislukt (${res.status})`);
+  if (!res.ok) {
+    const antwoord = await res.text().catch(() => "");
+    throw new UploadFout(
+      sleutelBijStatus(res.status, antwoord),
+      `voorbereiden mislukt (${res.status}) ${antwoord.slice(0, 200)}`
+    );
+  }
   const opdracht = (await res.json()) as UploadOpdracht;
 
   if (Platform.OS === "web") {
     if (!asset.file) throw new Error("geen bestand");
     // De browser zet Content-Length zelf op de grootte van het bestand; die
     // handmatig meesturen mag niet en is ook niet nodig.
-    const put = await fetch(opdracht.uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Type": opdracht.headers["Content-Type"] },
-      body: asset.file,
-    });
-    if (!put.ok) throw new Error(`upload mislukt (${put.status})`);
+    let put: Response;
+    try {
+      put = await fetch(opdracht.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": opdracht.headers["Content-Type"] },
+        body: asset.file,
+      });
+    } catch (err) {
+      // Een geweigerde preflight komt hier terecht: de browser geeft geen
+      // statuscode, alleen een netwerkfout. Bijna altijd een CORS-regel die de
+      // origin van deze webapp niet toestaat.
+      throw new UploadFout("c_upload_mislukt", `PUT geblokkeerd (CORS of netwerk): ${String(err)}`);
+    }
+    if (!put.ok) throw new UploadFout("c_upload_mislukt", `PUT afgewezen (${put.status})`);
   } else {
     const put = await uploadAsync(opdracht.uploadUrl, asset.uri, {
       httpMethod: "PUT",
       uploadType: FileSystemUploadType.BINARY_CONTENT,
       headers: opdracht.headers,
     });
-    if (put.status < 200 || put.status >= 300) throw new Error(`upload mislukt (${put.status})`);
+    if (put.status < 200 || put.status >= 300) {
+      throw new UploadFout("c_upload_mislukt", `PUT afgewezen (${put.status}) ${put.body.slice(0, 200)}`);
+    }
   }
 
   return opdracht.url;
@@ -107,8 +146,10 @@ export async function pickBijlage(): Promise<{ bijlage?: GekozenBijlage; fout?: 
   try {
     const url = await uploadBijlage(asset, naam, type, grootte);
     return { bijlage: { naam, url, type } };
-  } catch {
-    return { fout: "c_upload_mislukt" };
+  } catch (err) {
+    // De echte reden hoort niet in de UI, maar moet wél ergens te zien zijn.
+    console.error("[bijlage] upload mislukt:", err);
+    return { fout: err instanceof UploadFout ? err.sleutel : "c_upload_mislukt" };
   }
 }
 
