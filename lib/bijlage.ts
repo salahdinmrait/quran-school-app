@@ -126,12 +126,44 @@ function bestandsgrootte(asset: DocumentPicker.DocumentPickerAsset): number | nu
   }
 }
 
+// Precies de lijst die de server accepteert (ALLOWED_TYPES in
+// quran-school-lms/app/api/bijlage-upload/route.ts). De kiezer biedt niets aan
+// wat daarna toch geweigerd zou worden. Wijzig ze altijd samen.
+const TOEGESTANE_TYPES = [
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/heic",
+  "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska",
+  "audio/mpeg", "audio/mp4", "audio/wav", "audio/ogg", "audio/aac", "audio/x-m4a",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+] as const;
+
+// Sommige browsers (Chrome op Windows bij .heic) en bestandsbeheerders geven
+// geen type mee. Dan leiden we het af uit de extensie; de server keurt het
+// daarna alsnog.
+const TYPE_PER_EXTENSIE: Record<string, string> = {
+  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
+  webp: "image/webp", heic: "image/heic",
+  mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", avi: "video/x-msvideo",
+  mkv: "video/x-matroska",
+  mp3: "audio/mpeg", m4a: "audio/x-m4a", wav: "audio/wav", ogg: "audio/ogg", aac: "audio/aac",
+  pdf: "application/pdf", doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  txt: "text/plain",
+};
+
+function typeUitNaam(naam: string): string {
+  const ext = naam.split(".").pop()?.toLowerCase() ?? "";
+  return TYPE_PER_EXTENSIE[ext] ?? "application/octet-stream";
+}
+
 // Opent de bestandskiezer en uploadt het gekozen bestand meteen naar de opslag.
 // De foutmelding komt terug als vertaalsleutel; het scherm dat dit aanroept
 // heeft useT() en zet er de tekst van de gekozen taal bij.
 export async function pickBijlage(): Promise<{ bijlage?: GekozenBijlage; fout?: Sleutel }> {
   const result = await DocumentPicker.getDocumentAsync({
-    type: ["image/*", "video/*", "audio/*", "application/pdf", "text/plain"],
+    type: [...TOEGESTANE_TYPES],
     copyToCacheDirectory: true,
   });
   if (result.canceled || !result.assets?.[0]) return {};
@@ -142,7 +174,7 @@ export async function pickBijlage(): Promise<{ bijlage?: GekozenBijlage; fout?: 
   if (grootte > MAX_BIJLAGE_BYTES) return { fout: "c_bestand_te_groot" };
 
   const naam = asset.name ?? "bijlage";
-  const type = asset.mimeType ?? "application/octet-stream";
+  const type = asset.mimeType || typeUitNaam(naam);
   try {
     const url = await uploadBijlage(asset, naam, type, grootte);
     return { bijlage: { naam, url, type } };
