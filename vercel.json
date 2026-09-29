@@ -4,10 +4,57 @@
   "outputDirectory": "dist",
   "installCommand": "npm install --legacy-peer-deps",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://quran-school-lms.vercel.app/api/:path*" },
-    { "source": "/dev", "destination": "https://quran-school-lms.vercel.app/dev" },
-    { "source": "/dev/:path*", "destination": "https://quran-school-lms.vercel.app/dev/:path*" },
-    { "source": "/_next/:path*", "destination": "https://quran-school-lms.vercel.app/_next/:path*" },
-    { "source": "/((?!api|dev|_next|_expo|assets|favicon.ico|.*\\.).*)", "destination": "/index.html" }
+    {
+      "source": "/api/:path*",
+      "destination": "https://quran-school-lms.vercel.app/api/:path*"
+    },
+    {
+      "source": "/dev",
+      "destination": "https://quran-school-lms.vercel.app/dev"
+    },
+    {
+      "source": "/dev/:path*",
+      "destination": "https://quran-school-lms.vercel.app/dev/:path*"
+    },
+    {
+      "source": "/_next/:path*",
+      "destination": "https://quran-school-lms.vercel.app/_next/:path*"
+    },
+    {
+      "source": "/((?!api|dev|_next|_expo|assets|favicon.ico|.*\\.).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    },
+    {
+      "source": "/((?!api|dev|_next).*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://jadwal-bijlagen.s3.eu-central-003.backblazeb2.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        }
+      ]
+    }
   ]
 }

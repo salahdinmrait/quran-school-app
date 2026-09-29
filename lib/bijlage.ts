@@ -136,6 +136,10 @@ const TOEGESTANE_TYPES = [
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "text/plain",
 ] as const;
 
@@ -150,6 +154,10 @@ const TYPE_PER_EXTENSIE: Record<string, string> = {
   mp3: "audio/mpeg", m4a: "audio/x-m4a", wav: "audio/wav", ogg: "audio/ogg", aac: "audio/aac",
   pdf: "application/pdf", doc: "application/msword",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   txt: "text/plain",
 };
 
